@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
 import { Menu, X, Search } from 'lucide-react';
+import Content from './Content';
+import SearchPage from './SearchPage';
+import WatchlistPage from './WatchlistPage';
 
 const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
