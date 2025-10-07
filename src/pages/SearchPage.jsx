@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Search, TrendingUp, Clock, Filter, Calendar, Tag } from 'lucide-react';
+import { useApp } from "../Context/AppContext";
+import { useDebounce } from "../hooks/useDebounce";
+import ImageWithFallback from "../component/common/ImageWithFallback";
+import { LoadingSpinner } from "../component/common/Loading";
 
 const SearchPage = () => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { searchQuery, setSearchQuery, recentSearches, addRecentSearch, clearRecentSearches } = useApp();
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [recentSearches, setRecentSearches] = useState(['Apple earnings', 'Tesla stock', 'Fed rate']);
   const [showFilters, setShowFilters] = useState(false);
+  
+  const debouncedQuery = useDebounce(searchQuery, 300);
 
   const newsData = [
     { 
@@ -103,15 +108,14 @@ const SearchPage = () => {
 
   const categories = ['all', 'Market News', 'Earnings Report', 'Economic Policy', 'Company News', 'Technology', 'Sector Analysis'];
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    
+  const performSearch = (query) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
     
     setIsSearching(true);
+    
     setTimeout(() => {
       let filtered = newsData.filter(news => 
         news.title.toLowerCase().includes(query.toLowerCase()) ||
@@ -129,22 +133,20 @@ const SearchPage = () => {
     }, 300);
   };
 
-  const addToRecentSearches = (query) => {
-    setRecentSearches(prev => {
-      const updated = [query, ...prev.filter(s => s !== query)].slice(0, 5);
-      return updated;
-    });
+  const handleNewsClick = (news) => {
+    if (searchQuery) {
+      addRecentSearch(searchQuery);
+    }
+    console.log('Opening news:', news.title);
   };
 
-  const handleNewsClick = () => {
-    if (searchQuery) {
-      addToRecentSearches(searchQuery);
-    }
+  const handleTopicClick = (topic) => {
+    setSearchQuery(topic);
   };
 
   useEffect(() => {
-    handleSearch(searchQuery);
-  }, [selectedCategory]);
+    performSearch(debouncedQuery);
+  }, [debouncedQuery, selectedCategory]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -157,13 +159,14 @@ const SearchPage = () => {
             type="text" 
             placeholder="Search news by keyword, company, or stock symbol..."
             value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3 pl-12 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="absolute right-4 top-3 p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Toggle filters"
           >
             <Filter className={`w-5 h-5 ${showFilters ? 'text-blue-600' : 'text-gray-400'}`} />
           </button>
@@ -205,7 +208,7 @@ const SearchPage = () => {
               {trendingTopics.map(item => (
                 <button
                   key={item.topic}
-                  onClick={() => handleSearch(item.topic)}
+                  onClick={() => handleTopicClick(item.topic)}
                   className="w-full flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                 >
                   <span className="font-semibold text-gray-900">{item.topic}</span>
@@ -224,7 +227,7 @@ const SearchPage = () => {
               </div>
               {recentSearches.length > 0 && (
                 <button
-                  onClick={() => setRecentSearches([])}
+                  onClick={clearRecentSearches}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   Clear
@@ -236,7 +239,7 @@ const SearchPage = () => {
                 recentSearches.map((search, idx) => (
                   <button
                     key={idx}
-                    onClick={() => handleSearch(search)}
+                    onClick={() => setSearchQuery(search)}
                     className="w-full flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                   >
                     <Clock className="w-4 h-4 text-gray-400 mr-3" />
@@ -254,7 +257,7 @@ const SearchPage = () => {
                 {popularSearches.map((search, idx) => (
                   <button
                     key={idx}
-                    onClick={() => handleSearch(search)}
+                    onClick={() => setSearchQuery(search)}
                     className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
                   >
                     {search}
@@ -269,7 +272,9 @@ const SearchPage = () => {
       {/* Search Results */}
       {searchQuery && (
         <>
-          {searchResults.length > 0 ? (
+          {isSearching ? (
+            <LoadingSpinner />
+          ) : searchResults.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-gray-600 font-medium">
@@ -287,19 +292,19 @@ const SearchPage = () => {
               {searchResults.map((news) => (
                 <div
                   key={news.id}
-                  onClick={handleNewsClick}
+                  onClick={() => handleNewsClick(news)}
                   className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer hover:border-blue-300"
                 >
                   <div className="md:flex">
                     <div className="md:w-64 h-48 md:h-auto">
-                      <img 
-                        src={news.image} 
+                      <ImageWithFallback
+                        src={news.image}
                         alt={news.title}
                         className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="p-6 flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="px-3 py-1 text-xs font-semibold text-purple-600 bg-purple-100 rounded-full">
                           {news.category}
                         </span>
@@ -312,10 +317,10 @@ const SearchPage = () => {
                         {news.title}
                       </h3>
                       <p className="text-gray-600 mb-3 line-clamp-2">{news.snippet}</p>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
                           <Tag className="w-4 h-4 text-gray-400" />
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             {news.stocks.map(stock => (
                               <span key={stock} className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded">
                                 {stock}
@@ -329,11 +334,6 @@ const SearchPage = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          ) : isSearching ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Searching news...</p>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-md p-12 text-center">

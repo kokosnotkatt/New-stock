@@ -1,8 +1,7 @@
+import BannerSlider from '../component/Banner/BannerSlider';
+import NewsList from '../component/News/NewsList';
 
-import BannerSlider from './BannerSlider';
-import NewsList from './NewsList';
-
-const Content = () => {
+const HomePage = () => {
   const handleNewsClick = (article) => {
     console.log('Navigating to news:', article.title);
   };
@@ -17,4 +16,4 @@ const Content = () => {
   );
 };
 
-export default Content;
+export default HomePage;
