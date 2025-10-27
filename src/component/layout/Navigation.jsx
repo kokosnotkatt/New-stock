@@ -1,4 +1,4 @@
-import { useApp } from "../../Context/AppContext";
+import { useApp } from "../../context/AppContext";
 
 const Navigation = () => {
   const { activeTab, setActiveTab } = useApp();

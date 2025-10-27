@@ -1,366 +1,462 @@
-import { useState, useEffect } from 'react';
-import { Search, TrendingUp, Clock, Filter, Calendar, Tag } from 'lucide-react';
-import { useApp } from "../Context/AppContext";
-import { useDebounce } from "../hooks/useDebounce";
-import ImageWithFallback from "../component/common/ImageWithFallback";
-import { LoadingSpinner } from "../component/common/Loading";
+// pages/SearchPage.jsx
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { Search, Filter, X, TrendingUp, Clock } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { useDebounce } from '../hooks/useDebounce';
+import { SkeletonCard } from '../component/common/Loading';
+
+// Lazy load heavy components
+const NewsCard = lazy(() => import('../component/News/NewsCard'));
 
 const SearchPage = () => {
   const { searchQuery, setSearchQuery, recentSearches, addRecentSearch, clearRecentSearches } = useApp();
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
   
-  const debouncedQuery = useDebounce(searchQuery, 300);
-
-  const newsData = [
-    { 
-      id: 1,
-      title: 'Apple Announces Record Q4 Earnings, Stock Surges 5%',
-      source: 'Bloomberg',
-      category: 'Earnings Report',
-      date: '2 hours ago',
-      snippet: 'Apple Inc. reported better-than-expected quarterly earnings driven by strong iPhone sales...',
-      stocks: ['AAPL'],
-      image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 2,
-      title: 'Tesla Stock Drops 3% Following Production Miss',
-      source: 'Reuters',
-      category: 'Market News',
-      date: '5 hours ago',
-      snippet: 'Tesla shares fell in after-hours trading after the company reported production numbers below analyst expectations...',
-      stocks: ['TSLA'],
-      image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 3,
-      title: 'Federal Reserve Signals Potential Rate Cut in Q2',
-      source: 'Financial Times',
-      category: 'Economic Policy',
-      date: '8 hours ago',
-      snippet: 'Fed Chairman indicates possible interest rate reduction as inflation shows signs of cooling...',
-      stocks: ['SPY', 'QQQ'],
-      image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 4,
-      title: 'Microsoft Azure Revenue Grows 30% Year-Over-Year',
-      source: 'CNBC',
-      category: 'Earnings Report',
-      date: '1 day ago',
-      snippet: 'Microsoft cloud services continue strong growth trajectory, beating Wall Street estimates...',
-      stocks: ['MSFT'],
-      image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 5,
-      title: 'Tech Stocks Rally as Inflation Data Comes in Below Expectations',
-      source: 'Wall Street Journal',
-      category: 'Market News',
-      date: '1 day ago',
-      snippet: 'Major tech indices surge following positive inflation report, with Nasdaq up 2.5%...',
-      stocks: ['AAPL', 'MSFT', 'GOOGL', 'AMZN'],
-      image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 6,
-      title: 'Amazon Expands Same-Day Delivery to 50 More Cities',
-      source: 'Bloomberg',
-      category: 'Company News',
-      date: '2 days ago',
-      snippet: 'E-commerce giant continues logistics expansion in competitive delivery market...',
-      stocks: ['AMZN'],
-      image: 'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 7,
-      title: 'Google Announces New AI Features for Search',
-      source: 'TechCrunch',
-      category: 'Technology',
-      date: '3 days ago',
-      snippet: 'Alphabet unveils enhanced AI capabilities in search engine, intensifying competition...',
-      stocks: ['GOOGL'],
-      image: 'https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=400&h=250&fit=crop'
-    },
-    { 
-      id: 8,
-      title: 'Banking Sector Faces Headwinds as Loan Defaults Rise',
-      source: 'Financial Times',
-      category: 'Sector Analysis',
-      date: '3 days ago',
-      snippet: 'Major banks report increased loan loss provisions amid economic uncertainty...',
-      stocks: ['JPM', 'BAC', 'WFC'],
-      image: 'https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?w=400&h=250&fit=crop'
-    }
+  // Local state
+  const [filters, setFilters] = useState({
+    category: 'all',
+    timeRange: 'all',
+    sortBy: 'relevance'
+  });
+  
+  const [searchResults, setSearchResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  
+  // Debounced search value
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
+  // Categories
+  const categories = [
+    { value: 'all', label: 'All Categories' },
+    { value: 'stocks', label: 'Stocks' },
+    { value: 'ai', label: 'AI Technology' },
+    { value: 'market', label: 'Market Trends' },
+    { value: 'crypto', label: 'Cryptocurrency' },
+    { value: 'tech', label: 'Technology' }
+  ];
+  
+  // Time ranges
+  const timeRanges = [
+    { value: 'all', label: 'All Time' },
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'year', label: 'This Year' }
+  ];
+  
+  // Sort options
+  const sortOptions = [
+    { value: 'relevance', label: 'Most Relevant' },
+    { value: 'recent', label: 'Most Recent' },
+    { value: 'popular', label: 'Most Popular' }
   ];
 
-  const trendingTopics = [
-    { topic: 'AI Revolution', count: '1,234 articles' },
-    { topic: 'Fed Rate Decision', count: '892 articles' },
-    { topic: 'Tech Earnings', count: '756 articles' },
-    { topic: 'EV Market', count: '543 articles' }
-  ];
-
-  const popularSearches = ['Apple earnings', 'Tesla news', 'Fed rate', 'Tech stocks', 'Bitcoin', 'Oil prices'];
-
-  const categories = ['all', 'Market News', 'Earnings Report', 'Economic Policy', 'Company News', 'Technology', 'Sector Analysis'];
-
-  const performSearch = (query) => {
-    if (!query.trim()) {
+  // Mock search function (replace with actual API call)
+  const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
+    if (!query.trim() && currentFilters.category === 'all') {
       setSearchResults([]);
       return;
     }
     
-    setIsSearching(true);
+    setIsLoading(true);
+    setError(null);
     
-    setTimeout(() => {
-      let filtered = newsData.filter(news => 
-        news.title.toLowerCase().includes(query.toLowerCase()) ||
-        news.snippet.toLowerCase().includes(query.toLowerCase()) ||
-        news.category.toLowerCase().includes(query.toLowerCase()) ||
-        news.stocks.some(stock => stock.toLowerCase().includes(query.toLowerCase()))
-      );
-
-      if (selectedCategory !== 'all') {
-        filtered = filtered.filter(news => news.category === selectedCategory);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Mock data (replace with actual API response)
+      const mockResults = [
+        {
+          id: `${pageNum}-1`,
+          title: `Search Result for "${query}" - Article ${(pageNum - 1) * 10 + 1}`,
+          source: 'Tech News',
+          timeAgo: '2 hours ago',
+          category: 'Technology',
+          score: 0.95,
+          excerpt: `This article discusses ${query} in detail, covering various aspects and implications for the market.`
+        },
+        {
+          id: `${pageNum}-2`,
+          title: `Analysis: How ${query} is Changing the Industry`,
+          source: 'Market Watch',
+          timeAgo: '5 hours ago',
+          category: 'Market Trends',
+          score: 0.89,
+          excerpt: `An in-depth analysis of ${query} and its impact on current market trends and future projections.`
+        },
+        {
+          id: `${pageNum}-3`,
+          title: `Breaking: Major Development in ${query}`,
+          source: 'Financial Times',
+          timeAgo: '1 day ago',
+          category: 'Breaking News',
+          score: 0.87,
+          excerpt: `Latest updates and breaking news about ${query}, including expert opinions and market reactions.`
+        }
+      ];
+      
+      if (pageNum === 1) {
+        setSearchResults(mockResults);
+      } else {
+        setSearchResults(prev => [...prev, ...mockResults]);
       }
-
-      setSearchResults(filtered);
-      setIsSearching(false);
-    }, 300);
-  };
-
-  const handleNewsClick = (news) => {
-    if (searchQuery) {
-      addRecentSearch(searchQuery);
+      
+      // Check if there are more results
+      setHasMore(pageNum < 5); // Mock limit
+      
+      // Add to recent searches
+      if (query.trim() && pageNum === 1) {
+        addRecentSearch(query);
+      }
+      
+    } catch (err) {
+      setError('Failed to fetch search results. Please try again.');
+      console.error('Search error:', err);
+    } finally {
+      setIsLoading(false);
     }
-    console.log('Opening news:', news.title);
-  };
+  }, [addRecentSearch]);
 
-  const handleTopicClick = (topic) => {
-    setSearchQuery(topic);
-  };
-
+  // Effect for debounced search
   useEffect(() => {
-    performSearch(debouncedQuery);
-  }, [debouncedQuery, selectedCategory]);
+    if (debouncedSearchQuery) {
+      setPage(1);
+      performSearch(debouncedSearchQuery, filters, 1);
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearchQuery, filters, performSearch]);
+
+  // Memoized filtered results
+  const filteredResults = useMemo(() => {
+    let results = [...searchResults];
+    
+    // Apply category filter
+    if (filters.category !== 'all') {
+      results = results.filter(item => 
+        item.category.toLowerCase().includes(filters.category.toLowerCase())
+      );
+    }
+    
+    // Apply sorting
+    if (filters.sortBy === 'recent') {
+      results.sort((a, b) => {
+        // Convert timeAgo to comparable values
+        const getTime = (timeStr) => {
+          if (timeStr.includes('hour')) return parseInt(timeStr);
+          if (timeStr.includes('day')) return parseInt(timeStr) * 24;
+          return 999;
+        };
+        return getTime(a.timeAgo) - getTime(b.timeAgo);
+      });
+    } else if (filters.sortBy === 'popular') {
+      results.sort((a, b) => (b.score || 0) - (a.score || 0));
+    }
+    
+    return results;
+  }, [searchResults, filters]);
+
+  // Handle filter changes
+  const handleFilterChange = useCallback((filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+    setPage(1);
+  }, []);
+
+  // Handle load more
+  const handleLoadMore = useCallback(() => {
+    if (!isLoading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      performSearch(debouncedSearchQuery, filters, nextPage);
+    }
+  }, [page, isLoading, hasMore, debouncedSearchQuery, filters, performSearch]);
+
+  // Handle recent search click
+  const handleRecentSearchClick = useCallback((query) => {
+    setSearchQuery(query);
+  }, [setSearchQuery]);
+
+  // Clear search
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setPage(1);
+  }, [setSearchQuery]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">Search Stock News</h2>
-      
-      {/* Search Input with Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="relative mb-4">
-          <input 
-            type="text" 
-            placeholder="Search news by keyword, company, or stock symbol..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 pl-12 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="absolute right-4 top-3 p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Toggle filters"
-          >
-            <Filter className={`w-5 h-5 ${showFilters ? 'text-blue-600' : 'text-gray-400'}`} />
-          </button>
-        </div>
-
-        {/* Filters */}
-        {showFilters && (
-          <div className="pt-4 border-t border-gray-200">
-            <p className="text-sm font-semibold text-gray-700 mb-2">Filter by Category:</p>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(category => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedCategory === category
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {category === 'all' ? 'All News' : category}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Show suggestions when no search query */}
-      {!searchQuery && (
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
-          {/* Trending Topics */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-5 h-5 text-orange-600" />
-              <h3 className="text-lg font-bold text-gray-900">Trending Topics</h3>
-            </div>
-            <div className="space-y-3">
-              {trendingTopics.map(item => (
-                <button
-                  key={item.topic}
-                  onClick={() => handleTopicClick(item.topic)}
-                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
-                >
-                  <span className="font-semibold text-gray-900">{item.topic}</span>
-                  <span className="text-sm text-gray-500">{item.count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent & Popular Searches */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold text-gray-900">Recent Searches</h3>
-              </div>
-              {recentSearches.length > 0 && (
-                <button
-                  onClick={clearRecentSearches}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="space-y-2 mb-4">
-              {recentSearches.length > 0 ? (
-                recentSearches.map((search, idx) => (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Search Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search Input */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for stocks, news, topics..."
+                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+                {searchQuery && (
                   <button
-                    key={idx}
-                    onClick={() => setSearchQuery(search)}
-                    className="w-full flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label="Clear search"
                   >
-                    <Clock className="w-4 h-4 text-gray-400 mr-3" />
-                    <span className="font-medium text-gray-700">{search}</span>
+                    <X className="w-5 h-5" />
                   </button>
-                ))
-              ) : (
-                <p className="text-gray-500 text-sm">No recent searches</p>
-              )}
+                )}
+              </div>
             </div>
             
-            <div className="pt-4 border-t border-gray-200">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Popular Searches</p>
-              <div className="flex flex-wrap gap-2">
-                {popularSearches.map((search, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSearchQuery(search)}
-                    className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Filter className="w-5 h-5" />
+              <span>Filters</span>
+              {Object.values(filters).some(v => v !== 'all' && v !== 'relevance') && (
+                <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded-full text-xs">
+                  Active
+                </span>
+              )}
+            </button>
+          </div>
+          
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={filters.category}
+                    onChange={(e) => handleFilterChange('category', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {search}
+                    {categories.map(cat => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Time Range Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Range
+                  </label>
+                  <select
+                    value={filters.timeRange}
+                    onChange={(e) => handleFilterChange('timeRange', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {timeRanges.map(range => (
+                      <option key={range.value} value={range.value}>
+                        {range.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {sortOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content Area */}
+          <div className="lg:col-span-2">
+            {/* Search Results */}
+            {searchQuery && (
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {isLoading && page === 1 ? (
+                    'Searching...'
+                  ) : (
+                    <>
+                      {filteredResults.length} results for "{searchQuery}"
+                      {filters.category !== 'all' && ` in ${filters.category}`}
+                    </>
+                  )}
+                </h2>
+              </div>
+            )}
+            
+            {/* Error State */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                {error}
+              </div>
+            )}
+            
+            {/* Results List */}
+            <div className="space-y-4">
+              {isLoading && page === 1 ? (
+                // Loading state
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-lg p-6 border border-gray-200">
+                    <SkeletonCard />
+                  </div>
+                ))
+              ) : filteredResults.length > 0 ? (
+                // Results
+                <Suspense fallback={<SkeletonCard />}>
+                  {filteredResults.map((result) => (
+                    <div key={result.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                      <NewsCard
+                        article={{
+                          ...result,
+                          url: `/news/${result.id}`
+                        }}
+                        onClick={() => console.log('Navigate to:', result)}
+                      />
+                      {result.excerpt && (
+                        <div className="px-6 pb-4 -mt-2">
+                          <p className="text-sm text-gray-600">{result.excerpt}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </Suspense>
+              ) : searchQuery && !isLoading ? (
+                // No results
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No results found
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Try adjusting your search terms or filters
+                  </p>
+                  <button
+                    onClick={handleClearSearch}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              ) : !searchQuery && recentSearches.length === 0 ? (
+                // Empty state
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Start searching
+                  </h3>
+                  <p className="text-gray-600">
+                    Enter keywords to search for stocks, news, and market trends
+                  </p>
+                </div>
+              ) : null}
+              
+              {/* Load More Button */}
+              {filteredResults.length > 0 && hasMore && (
+                <div className="text-center py-4">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isLoading}
+                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      'Load More'
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-gray-500" />
+                    <h3 className="font-semibold text-gray-900">Recent Searches</h3>
+                  </div>
+                  <button
+                    onClick={clearRecentSearches}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {recentSearches.map((search, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleRecentSearchClick(search)}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      {search}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Trending Topics */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-5 h-5 text-green-500" />
+                <h3 className="font-semibold text-gray-900">Trending Topics</h3>
+              </div>
+              <div className="space-y-3">
+                {['NVIDIA', 'AI Stocks', 'Fed Rate', 'Tesla', 'Cryptocurrency'].map((topic, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSearchQuery(topic)}
+                    className="flex items-center justify-between w-full text-left hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-700">{topic}</span>
+                    <span className="text-xs text-gray-500">#{index + 1}</span>
                   </button>
                 ))}
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Search Results */}
-      {searchQuery && (
-        <>
-          {isSearching ? (
-            <LoadingSpinner />
-          ) : searchResults.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-gray-600 font-medium">
-                  {searchResults.length} article{searchResults.length !== 1 ? 's' : ''} found
-                </p>
-                {selectedCategory !== 'all' && (
-                  <button
-                    onClick={() => setSelectedCategory('all')}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </div>
-              {searchResults.map((news) => (
-                <div
-                  key={news.id}
-                  onClick={() => handleNewsClick(news)}
-                  className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer hover:border-blue-300"
-                >
-                  <div className="md:flex">
-                    <div className="md:w-64 h-48 md:h-auto">
-                      <ImageWithFallback
-                        src={news.image}
-                        alt={news.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-6 flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="px-3 py-1 text-xs font-semibold text-purple-600 bg-purple-100 rounded-full">
-                          {news.category}
-                        </span>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Calendar className="w-4 h-4" />
-                          <span>{news.date}</span>
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-blue-600">
-                        {news.title}
-                      </h3>
-                      <p className="text-gray-600 mb-3 line-clamp-2">{news.snippet}</p>
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <Tag className="w-4 h-4 text-gray-400" />
-                          <div className="flex gap-2 flex-wrap">
-                            {news.stocks.map(stock => (
-                              <span key={stock} className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded">
-                                {stock}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <span className="text-sm text-gray-500 font-medium">{news.source}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No articles found</h3>
-              <p className="text-gray-600 mb-4">Try different keywords or check the spelling</p>
-              {selectedCategory !== 'all' && (
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Clear filters and try again
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Empty state when no search */}
-      {!searchQuery && (
-        <div className="bg-white rounded-lg shadow-md p-12 text-center mt-6">
-          <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Start Your Search</h3>
-          <p className="text-gray-600">Search for stock news by keyword, company name, or stock symbol</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

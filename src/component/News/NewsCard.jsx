@@ -1,4 +1,7 @@
-const NewsCard = ({ article, onClick }) => {
+// component/News/NewsCard.jsx - Optimized with React.memo
+import React from 'react';
+
+const NewsCard = React.memo(({ article, onClick }) => {
   const getCategoryColor = (category) => {
     const colors = {
       'Stock Analysis': 'bg-blue-100 text-blue-800',
@@ -6,15 +9,21 @@ const NewsCard = ({ article, onClick }) => {
       'Market Trends': 'bg-green-100 text-green-800',
       'Tech Stocks': 'bg-orange-100 text-orange-800',
       'Innovation': 'bg-red-100 text-red-800',
-      'Emerging Tech': 'bg-indigo-100 text-indigo-800'
+      'Emerging Tech': 'bg-indigo-100 text-indigo-800',
+      'Technology': 'bg-cyan-100 text-cyan-800',
+      'Breaking News': 'bg-yellow-100 text-yellow-800'
     };
     return colors[category] || 'bg-gray-100 text-gray-800';
+  };
+
+  const handleClick = () => {
+    onClick?.(article);
   };
 
   return (
     <div 
       className="p-6 hover:bg-gray-50 transition-colors cursor-pointer group"
-      onClick={() => onClick?.(article)}
+      onClick={handleClick}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -24,6 +33,14 @@ const NewsCard = ({ article, onClick }) => {
             </span>
             <span className="text-xs text-gray-500">•</span>
             <span className="text-xs text-gray-500">{article.timeAgo}</span>
+            {article.score && (
+              <>
+                <span className="text-xs text-gray-500">•</span>
+                <span className="text-xs text-gray-500">
+                  {(article.score * 100).toFixed(0)}% match
+                </span>
+              </>
+            )}
           </div>
           
           <h4 className="font-semibold text-gray-900 mb-2 leading-tight group-hover:text-blue-600 transition-colors">
@@ -53,6 +70,15 @@ const NewsCard = ({ article, onClick }) => {
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo optimization
+  return (
+    prevProps.article.id === nextProps.article.id &&
+    prevProps.article.title === nextProps.article.title &&
+    prevProps.article.score === nextProps.article.score
+  );
+});
+
+NewsCard.displayName = 'NewsCard';
 
 export default NewsCard;

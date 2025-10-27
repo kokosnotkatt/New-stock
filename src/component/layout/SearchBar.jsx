@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react';
-import { useApp } from "../../Context/AppContext";
+import { useApp } from "../../context/AppContext";
 
 const SearchBar = ({ className = "" }) => {
   const { searchQuery, setSearchQuery, setActiveTab, addRecentSearch } = useApp();

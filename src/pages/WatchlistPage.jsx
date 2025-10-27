@@ -1,5 +1,5 @@
 import { Bell } from "lucide-react";
-import { useApp } from "../Context/AppContext";
+import { useApp } from "../context/AppContext";
 import ImageWithFallback from "../component/common/ImageWithFallback";
 
 const WatchlistPage = () => {

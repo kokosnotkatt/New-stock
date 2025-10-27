@@ -1,12 +1,25 @@
-import { AppProvider } from './Context/AppContext';
+// App.jsx - Optimized with lazy loading and code splitting
+import { lazy, Suspense } from 'react';
+import { AppProvider } from './context/AppContext';
 import ErrorBoundary from "./component/common/ErrorBoundary";
-import MainLayout from "./component/layout/MainLayout";
+import { LoadingSpinner } from "./component/common/Loading";
+
+// Lazy load the main layout to reduce initial bundle size
+const MainLayout = lazy(() => import('./component/layout/MainLayout'));
 
 function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
-        <MainLayout />
+        <Suspense 
+          fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <LoadingSpinner size="lg" />
+            </div>
+          }
+        >
+          <MainLayout />
+        </Suspense>
       </AppProvider>
     </ErrorBoundary>
   );

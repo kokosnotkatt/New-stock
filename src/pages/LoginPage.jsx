@@ -1,62 +1,161 @@
-import { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, X } from 'lucide-react';
+// pages/LoginPage.jsx - Optimized with proper authentication
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Eye, EyeOff, Mail, Lock, X, AlertCircle } from 'lucide-react';
+import authService from '../services/authService';
 
-const LoginPage = ({ onClose, onSwitchToSignup }) => {
+const LoginPage = ({ onClose, onSwitchToSignup, onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const emailInputRef = useRef(null);
 
-  const validateForm = () => {
-    const newErrors = {};
+  // Focus email input on mount
+  useEffect(() => {
+    emailInputRef.current?.focus();
+  }, []);
 
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  // Email validation regex
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
   };
 
+  // Validate single field
+  const validateField = useCallback((name, value) => {
+    switch (name) {
+      case 'email':
+        if (!value) return 'Email is required';
+        if (!validateEmail(value)) return 'Please enter a valid email address';
+        return null;
+      
+      case 'password':
+        if (!value) return 'Password is required';
+        if (value.length < 6) return 'Password must be at least 6 characters';
+        return null;
+      
+      default:
+        return null;
+    }
+  }, []);
+
+  // Validate entire form
+  const validateForm = useCallback(() => {
+    const newErrors = {};
+    
+    Object.keys(formData).forEach(key => {
+      if (key !== 'rememberMe') {
+        const error = validateField(key, formData[key]);
+        if (error) newErrors[key] = error;
+      }
+    });
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData, validateField]);
+
+  // Handle input change with real-time validation
+  const handleChange = useCallback((e) => {
+    const { name, value, type, checked } = e.target;
+    const fieldValue = type === 'checkbox' ? checked : value;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: fieldValue
+    }));
+    
+    // Clear API error when user starts typing
+    if (apiError) {
+      setApiError(null);
+    }
+    
+    // Real-time validation for touched fields
+    if (errors[name]) {
+      const error = validateField(name, fieldValue);
+      setErrors(prev => ({
+        ...prev,
+        [name]: error
+      }));
+    }
+  }, [errors, apiError, validateField]);
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    // Reset errors
+    setApiError(null);
+    
+    // Validate form
+    if (!validateForm()) {
+      // Focus first error field
+      const firstErrorField = Object.keys(errors)[0];
+      document.getElementById(firstErrorField)?.focus();
+      return;
+    }
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      console.log('Login attempt:', formData);
-      setIsLoading(false);
-      alert('Login successful!');
+    try {
+      const response = await authService.login(formData.email, formData.password);
+      
+      // Store remember me preference
+      if (formData.rememberMe) {
+        localStorage.setItem('remember_email', formData.email);
+      } else {
+        localStorage.removeItem('remember_email');
+      }
+      
+      // Success callback
+      if (onLoginSuccess) {
+        onLoginSuccess(response.user);
+      }
+      
+      // Close modal
       onClose?.();
-    }, 1500);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      
+      // Handle specific error codes
+      if (error.code === 'RATE_LIMITED') {
+        setApiError(error.message);
+      } else if (error.response?.status === 401) {
+        setApiError('Invalid email or password. Please try again.');
+        setFormData(prev => ({ ...prev, password: '' }));
+      } else if (error.code === 'NETWORK_ERROR') {
+        setApiError('Network error. Please check your connection and try again.');
+      } else {
+        setApiError(error.message || 'An error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Handle OAuth login
+  const handleOAuthLogin = useCallback((provider) => {
+    setIsLoading(true);
+    // Implement OAuth flow here
+    window.location.href = `/api/auth/oauth/${provider}`;
+  }, []);
+
+  // Check for remembered email on mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('remember_email');
+    if (rememberedEmail) {
+      setFormData(prev => ({
+        ...prev,
+        email: rememberedEmail,
+        rememberMe: true
+      }));
+    }
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -84,7 +183,15 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-5">
+        <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-5" noValidate>
+          {/* API Error Alert */}
+          {apiError && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{apiError}</p>
+            </div>
+          )}
+
           {/* Email Field */}
           <div>
             <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -93,6 +200,7 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
             <div className="relative">
               <Mail className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
               <input
+                ref={emailInputRef}
                 type="email"
                 id="email"
                 name="email"
@@ -104,10 +212,15 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
                     : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 }`}
                 placeholder="Enter your email"
+                autoComplete="email"
+                disabled={isLoading}
               />
             </div>
             {errors.email && (
-              <p className="mt-1.5 text-sm text-red-600">{errors.email}</p>
+              <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.email}
+              </p>
             )}
           </div>
 
@@ -130,12 +243,15 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
                     : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 }`}
                 placeholder="Enter your password"
+                autoComplete="current-password"
+                disabled={isLoading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
               >
                 {showPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -145,7 +261,10 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
               </button>
             </div>
             {errors.password && (
-              <p className="mt-1.5 text-sm text-red-600">{errors.password}</p>
+              <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.password}
+              </p>
             )}
           </div>
 
@@ -154,13 +273,18 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
             <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
+                name="rememberMe"
+                checked={formData.rememberMe}
+                onChange={handleChange}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                disabled={isLoading}
               />
               <span className="ml-2 text-sm text-gray-700">Remember me</span>
             </label>
             <button
               type="button"
               className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              disabled={isLoading}
             >
               Forgot password?
             </button>
@@ -196,7 +320,9 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
           <div className="space-y-3">
             <button
               type="button"
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 bg-white/50"
+              onClick={() => handleOAuthLogin('google')}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 bg-white/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -208,11 +334,12 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
             </button>
             <button
               type="button"
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 bg-white/50"
+              onClick={() => handleOAuthLogin('line')}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700 bg-white/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                <path d="M19.5 3H4.5C3.67 3 3 3.67 3 4.5V19.5C3 20.33 3.67 21 4.5 21H19.5C20.33 21 21 20.33 21 19.5V4.5C21 3.67 20.33 3 19.5 3Z" fill="#00B900"/>
-                <path d="M8.5 18.5H6V9.5H8.5V18.5ZM15.5 18.5H13V13.5C13 12.67 12.33 12 11.5 12C10.67 12 10 12.67 10 13.5V18.5H7.5V9.5H10V10.7C10.5 10.1 11.4 9.5 12.5 9.5C14.43 9.5 16 11.07 16 13V18.5H15.5Z" fill="white"/>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#00B900">
+                <path d="M19.5 3H4.5C3.67 3 3 3.67 3 4.5V19.5C3 20.33 3.67 21 4.5 21H19.5C20.33 21 21 20.33 21 19.5V4.5C21 3.67 20.33 3 19.5 3Z"/>
               </svg>
               Continue with LINE
             </button>
@@ -225,6 +352,7 @@ const LoginPage = ({ onClose, onSwitchToSignup }) => {
               type="button"
               onClick={onSwitchToSignup}
               className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
+              disabled={isLoading}
             >
               Sign up
             </button>

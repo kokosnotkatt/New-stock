@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Menu, X, Search } from 'lucide-react';
-import { useApp } from "../../Context/AppContext";
+import { useApp } from "../../context/AppContext";
 import SearchBar from "./SearchBar";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
@@ -45,11 +45,6 @@ const Header = () => {
                 LOGO
               </h1>
             </div>
-
-            <div className="hidden md:flex flex-1 max-w-lg mx-8">
-              <SearchBar className="w-full" />
-            </div>
-
             <div className="hidden md:flex items-center space-x-3">
               <button 
                 onClick={handleSignIn}
