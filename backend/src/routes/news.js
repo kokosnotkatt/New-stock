@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
   try {
     const { category = 'general', limit = 50 } = req.query;
     
-    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}`);
+    console.log(` Fetching news - category: ${category}, limit: ${limit}`);
     
     const news = await finnhubService.getMarketNews(category);
     
@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching news:', error);
+    console.error(' Error fetching news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch news',
@@ -52,7 +52,7 @@ router.get('/company/:symbol', async (req, res) => {
     
     const dateRange = finnhubService.getDateRange(parseInt(days));
     
-    console.log(`📰 Fetching ${symbol} news from ${dateRange.from} to ${dateRange.to}`);
+    console.log(` Fetching ${symbol} news from ${dateRange.from} to ${dateRange.to}`);
     
     const news = await finnhubService.getCompanyNews(symbol, dateRange.from, dateRange.to);
     
@@ -79,7 +79,7 @@ router.get('/company/:symbol', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching company news:', error);
+    console.error(' Error fetching company news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch company news',
@@ -93,7 +93,7 @@ router.get('/quote/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
     
-    console.log(`💰 Fetching quote for ${symbol}`);
+    console.log(` Fetching quote for ${symbol}`);
     
     const quote = await finnhubService.getStockQuote(symbol);
     
@@ -113,7 +113,7 @@ router.get('/quote/:symbol', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching quote:', error);
+    console.error(' Error fetching quote:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch stock quote',
@@ -135,7 +135,7 @@ router.get('/search', async (req, res) => {
       });
     }
     
-    console.log(`🔍 Searching stocks: ${query}`);
+    console.log(` Searching stocks: ${query}`);
     
     const searchResults = await finnhubService.searchSymbol(query);
     
@@ -146,7 +146,7 @@ router.get('/search', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error searching stocks:', error);
+    console.error(' Error searching stocks:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to search stocks',

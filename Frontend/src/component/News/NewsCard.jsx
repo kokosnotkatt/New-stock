@@ -27,7 +27,7 @@ const NewsCard = React.memo(({ article, onClick }) => {
     >
       <div className="flex items-start justify-between gap-5">
         
-        {article.imageUrl && (
+        {article.image && (
           <ImageWithFallback
             src={article.image}
             alt={article.title}
@@ -85,7 +85,7 @@ const NewsCard = React.memo(({ article, onClick }) => {
     prevProps.article.id === nextProps.article.id &&
     prevProps.article.title === nextProps.article.title &&
     prevProps.article.score === nextProps.article.score &&
-    prevProps.article.imageUrl === nextProps.article.imageUrl 
+    prevProps.article.image === nextProps.article.image
   );
 });
 

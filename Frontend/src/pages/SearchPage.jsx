@@ -42,55 +42,30 @@ const SearchPage = () => {
     { value: 'popular', label: 'Most Popular' }
   ];
 
-  const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
-    if (!query.trim() && currentFilters.category === 'all') {
-      setSearchResults([]);
-      return;
-    }
+const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
+  if (!query.trim() && currentFilters.category === 'all') {
+    setSearchResults([]);
+    return;
+  }
+  
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    const response = await fetch(`http://localhost:5001/api/news?limit=20&category=${currentFilters.category}`);
+    const data = await response.json();
     
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const mockResults = [
-        {
-          id: `${pageNum}-1`,
-          title: `Search Result for "${query}" - Article ${(pageNum - 1) * 10 + 1}`,
-          source: 'Tech News',
-          timeAgo: '2 hours ago',
-          category: 'Technology',
-          score: 0.95,
-          excerpt: `This article discusses ${query} in detail...`,
-          image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=150&h=150&fit=crop'
-        },
-        {
-          id: `${pageNum}-2`,
-          title: `Analysis: How ${query} is Changing the Industry`,
-          source: 'Market Watch',
-          timeAgo: '5 hours ago',
-          category: 'Market Trends',
-          score: 0.89,
-          excerpt: `An in-depth analysis of ${query} and its impact...`,
-          image: 'https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=150&h=150&fit=crop'
-        },
-        {
-          id: `${pageNum}-3`,
-          title: `Breaking: Major Development in ${query}`,
-          source: 'Financial Times',
-          timeAgo: '1 day ago',
-          category: 'Breaking News',
-          score: 0.87,
-          excerpt: `Latest updates and breaking news about ${query}...`,
-          image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=150&h=150&fit=crop'
-        }
-      ];
+    if (data.success) {
+      // กรองตาม search query
+      const filtered = data.data.filter(item => 
+        item.title.toLowerCase().includes(query.toLowerCase()) ||
+        item.summary?.toLowerCase().includes(query.toLowerCase())
+      );
       
       if (pageNum === 1) {
-        setSearchResults(mockResults);
+        setSearchResults(filtered);
       } else {
-        setSearchResults(prev => [...prev, ...mockResults]);
+        setSearchResults(prev => [...prev, ...filtered]);
       }
       
       setHasMore(pageNum < 5);
@@ -98,14 +73,17 @@ const SearchPage = () => {
       if (query.trim() && pageNum === 1) {
         addRecentSearch(query);
       }
-      
-    } catch (err) {
-      setError('Failed to fetch search results. Please try again.');
-      console.error('Search error:', err);
-    } finally {
-      setIsLoading(false);
+    } else {
+      setError('Failed to fetch search results');
     }
-  }, [addRecentSearch]);
+    
+  } catch (err) {
+    setError('Failed to fetch search results. Please try again.');
+    console.error('Search error:', err);
+  } finally {
+    setIsLoading(false);
+  }
+}, [addRecentSearch]);
 
   // (Effect, Memo, Handlers... เหมือนเดิม)
   useEffect(() => {
@@ -308,7 +286,7 @@ const SearchPage = () => {
                         article={{
                           ...result,
                           url: `/news/${result.id}`,
-                          image: result.imageUrl 
+                          image: result.image
                         }}
                         onClick={() => console.log('Navigate to:', result)}
                       />
