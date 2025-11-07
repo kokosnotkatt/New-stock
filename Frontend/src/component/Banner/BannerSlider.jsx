@@ -4,36 +4,111 @@ import ImageWithFallback from "../common/ImageWithFallback";
 const BannerSlider = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
+  const [slides, setSlides] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const slides = [
+  // ✅ ดึงข่าวจาก API เมื่อ component mount
+  useEffect(() => {
+    fetchCNBCNews();
+  }, []);
+
+  const fetchCNBCNews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // ดึงข่าวล่าสุด จำนวนมากเพื่อกรอง CNBC
+      const response = await fetch('http://localhost:5001/api/news?limit=50&category=general');
+      const data = await response.json();
+      
+      if (data.success) {
+        // ✅ กรองเฉพาะข่าวจาก CNBC ที่มีรูป
+        const cnbcNews = data.data
+          .filter(article => 
+            article.source?.toLowerCase().includes('cnbc') && 
+            article.image
+          )
+          .slice(0, 5) // เอาแค่ 5 ข่าว
+          .map((article, index) => ({
+            id: article.id || index,
+            title: article.title,
+            description: article.summary || article.title,
+            image: article.image,
+            alt: article.title,
+            gradient: getGradientByIndex(index),
+            url: article.url,
+            source: article.source
+          }));
+        
+        console.log('📰 Found', cnbcNews.length, 'CNBC news with images');
+        
+        if (cnbcNews.length > 0) {
+          setSlides(cnbcNews);
+        } else {
+          // ถ้าไม่มีข่าว CNBC ให้ใช้ fallback
+          console.warn('⚠️ No CNBC news found, using fallback slides');
+          setSlides(getFallbackSlides());
+        }
+      } else {
+        throw new Error('Failed to fetch news');
+      }
+    } catch (err) {
+      console.error('❌ Error fetching CNBC news:', err);
+      setError(err.message);
+      // ใช้ fallback slides เมื่อ error
+      setSlides(getFallbackSlides());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper: สุ่ม gradient สี
+  const getGradientByIndex = (index) => {
+    const gradients = [
+      'from-blue-600 to-blue-800',     // CNBC Blue theme
+      'from-cyan-600 to-blue-700',
+      'from-indigo-600 to-blue-800',
+      'from-blue-500 to-purple-700',
+      'from-sky-600 to-blue-800'
+    ];
+    return gradients[index % gradients.length];
+  };
+
+  // Fallback slides เมื่อไม่มีข่าว CNBC
+  const getFallbackSlides = () => [
     {
       id: 1,
-      title: "Microsoft Office 365",
-      description: "Microsoft (MSFT) is a diversified stock that stands out with a strong business model, reliable revenues, and massive global presence. Founded in 1975 by Bill Gates and Paul Allen, it is a leader in cloud computing, artificial intelligence, and enterprise software.",
-      image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&h=400&fit=crop",
-      alt: "Microsoft Office 365",
-      gradient: "from-blue-500 to-purple-600"
+      title: "CNBC Market News",
+      description: "Stay updated with the latest market trends and financial news from CNBC.",
+      image: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=400&fit=crop",
+      alt: "CNBC Market News",
+      gradient: "from-blue-600 to-blue-800",
+      source: "CNBC"
     },
     {
       id: 2,
-      title: "Google Workspace",
-      description: "Google Workspace offers a comprehensive suite of productivity tools designed for modern businesses. With cloud-based collaboration, real-time editing, and seamless integration across devices, it empowers teams to work efficiently from anywhere.",
-      image: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=800&h=400&fit=crop",
-      alt: "Google Workspace",
-      gradient: "from-red-500 to-pink-600"
+      title: "Business & Finance",
+      description: "Get expert analysis and insights on business trends from CNBC's top analysts.",
+      image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
+      alt: "Business & Finance",
+      gradient: "from-cyan-600 to-blue-700",
+      source: "CNBC"
     },
     {
       id: 3,
-      title: "Amazon Web Services",
-      description: "AWS remains the leading cloud computing platform, offering scalable infrastructure solutions for businesses of all sizes. With continuous innovation in machine learning, serverless computing, and edge services, AWS maintains its position as the preferred choice for enterprise digital transformation.",
-      image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop",
-      alt: "Amazon Web Services",
-      gradient: "from-yellow-500 to-orange-600"
+      title: "Stock Market Updates",
+      description: "Real-time updates and breaking news about the stock market from CNBC.",
+      image: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&h=400&fit=crop",
+      alt: "Stock Market Updates",
+      gradient: "from-indigo-600 to-blue-800",
+      source: "CNBC"
     }
   ];
 
+  // Auto-play slider
   useEffect(() => {
-    if (isAutoPlay) {
+    if (isAutoPlay && slides.length > 1) {
       const interval = setInterval(() => {
         setCurrentSlide((prev) => (prev + 1) % slides.length);
       }, 5000);
@@ -42,13 +117,17 @@ const BannerSlider = () => {
   }, [isAutoPlay, slides.length]);
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
-    setIsAutoPlay(false);
+    if (slides.length > 0) {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+      setIsAutoPlay(false);
+    }
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-    setIsAutoPlay(false);
+    if (slides.length > 0) {
+      setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+      setIsAutoPlay(false);
+    }
   };
 
   const goToSlide = (index) => {
@@ -56,9 +135,38 @@ const BannerSlider = () => {
     setIsAutoPlay(false);
   };
 
+  const handleSlideClick = (slide) => {
+    if (slide.url) {
+      window.open(slide.url, '_blank');
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="relative w-full h-80 bg-gray-200 rounded-lg overflow-hidden shadow-lg flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading CNBC news...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (slides.length === 0) {
+    return (
+      <div className="relative w-full h-80 bg-gray-200 rounded-lg overflow-hidden shadow-lg flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">No CNBC news available</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-80 bg-gray-100 rounded-lg overflow-hidden shadow-lg">
-      {/* Navigation Buttons */}
+      {/* ✅ Navigation Buttons - แสดงเสมอ (ไม่ซ่อน) */}
       <button
         onClick={prevSlide}
         className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-sm transition-all z-20"
@@ -87,7 +195,8 @@ const BannerSlider = () => {
         {slides.map((slide, index) => (
           <div
             key={slide.id}
-            className="min-w-full h-full relative"
+            className="min-w-full h-full relative cursor-pointer group"
+            onClick={() => handleSlideClick(slide)}
           >
             <div className="absolute inset-0">
               <ImageWithFallback
@@ -95,43 +204,77 @@ const BannerSlider = () => {
                 alt={slide.alt}
                 className="w-full h-full object-cover"
                 fallbackGradient={slide.gradient}
+                priority={index === 0} // Load first image with priority
               />
-              <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
             </div>
 
             {/* Content Overlay */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white p-6">
-              <h2 className="text-xl font-bold mb-3 leading-tight">
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent text-white p-6">
+              {/* CNBC Badge */}
+              <div className="mb-2">
+                <span className="inline-block bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded">
+                  {slide.source}
+                </span>
+              </div>
+
+              <h2 className="text-2xl font-bold mb-3 leading-tight drop-shadow-lg">
                 {slide.title}
               </h2>
-              <p className="text-sm leading-relaxed">
+              <p className="text-sm leading-relaxed line-clamp-2 drop-shadow-md">
                 {slide.description}
               </p>
+              
+              {/* Read more indicator */}
+              {slide.url && (
+                <div className="mt-3 flex items-center text-sm text-white/90 hover:text-white transition-colors">
+                  <span>Read more on CNBC</span>
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              )}
             </div>
 
             {/* Progress Bar */}
-            {currentSlide === index && isAutoPlay && (
-              <div className="absolute bottom-0 left-0 h-1 bg-white animate-progress"></div>
+            {currentSlide === index && isAutoPlay && slides.length > 1 && (
+              <div className="absolute bottom-0 left-0 h-1 bg-blue-500 animate-progress"></div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Dot Indicators */}
-      <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => goToSlide(index)}
-            className={`transition-all duration-300 ${
-              index === currentSlide
-                ? 'w-6 h-2 bg-white rounded-full'
-                : 'w-2 h-2 bg-white bg-opacity-50 hover:bg-white hover:bg-opacity-75 rounded-full'
-            }`}
-            aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
+      {/* Dot Indicators - แสดงเมื่อมีมากกว่า 1 slide */}
+      {slides.length > 1 && (
+        <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`transition-all duration-300 ${
+                index === currentSlide
+                  ? 'w-6 h-2 bg-white rounded-full'
+                  : 'w-2 h-2 bg-white bg-opacity-50 hover:bg-white hover:bg-opacity-75 rounded-full'
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Slide Counter - แสดงจำนวน slides */}
+      <div className="absolute top-4 right-4 bg-black bg-opacity-60 text-white text-xs px-3 py-1 rounded-full z-20">
+        {currentSlide + 1} / {slides.length}
       </div>
+
+      {/* Error indicator (subtle) */}
+      {error && (
+        <div className="absolute top-4 left-4 z-30">
+          <div className="bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+            Using fallback content
+          </div>
+        </div>
+      )}
     </div>
   );
 };

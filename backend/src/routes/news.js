@@ -3,39 +3,78 @@ import finnhubService from '../services/finnhubService.js';
 
 const router = express.Router();
 
+// ✅ Helper: ตรวจสอบว่า image URL valid หรือไม่
+const isValidImageUrl = (url) => {
+  if (!url) return false;
+  if (!url.startsWith('http')) return false;
+  
+  // Blacklist domains ที่มักมีปัญหา
+  const blacklistedDomains = [
+    'static2.finnhub.io', // Finnhub logo มักโหลดไม่ได้
+    'static.finnhub.io'
+  ];
+  
+  return !blacklistedDomains.some(domain => url.includes(domain));
+};
+
 // GET /api/news - ดึงข่าวล่าสุด
 router.get('/', async (req, res) => {
   try {
     const { category = 'general', limit = 50 } = req.query;
     
-    console.log(` Fetching news - category: ${category}, limit: ${limit}`);
+    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}`);
     
     const news = await finnhubService.getMarketNews(category);
     
     // จำกัดจำนวนข่าว
     const limitedNews = news.slice(0, parseInt(limit));
     
+    let validImageCount = 0;
+    let noImageCount = 0;
+    
     // แปลงข้อมูลให้ตรงกับ format ของ Frontend
-    const formattedNews = limitedNews.map((item, index) => ({
-      id: item.id || index,
-      title: item.headline,
-      source: item.source,
-      timeAgo: getTimeAgo(item.datetime),
-      category: getCategoryName(item.category),
-      url: item.url,
-      image: item.image,
-      summary: item.summary,
-      datetime: item.datetime
-    }));
+    const formattedNews = limitedNews.map((item, index) => {
+      let imageUrl = item.image;
+      
+      // ✅ ถ้ารูปไม่ valid ให้เป็น null แทน
+      if (!isValidImageUrl(imageUrl)) {
+        imageUrl = null;
+        noImageCount++;
+        
+        if (item.image) {
+          console.log(`⚠️  Removed invalid image: ${item.image.substring(0, 60)}...`);
+        }
+      } else {
+        validImageCount++;
+      }
+      
+      return {
+        id: item.id || index,
+        title: item.headline,
+        source: item.source,
+        timeAgo: getTimeAgo(item.datetime),
+        category: getCategoryName(item.category),
+        url: item.url,
+        image: imageUrl, // null ถ้าไม่มีรูป
+        summary: item.summary,
+        datetime: item.datetime
+      };
+    });
+    
+    console.log(`✅ Formatted ${formattedNews.length} news (${validImageCount} with images, ${noImageCount} without images)`);
     
     res.json({
       success: true,
       count: formattedNews.length,
+      stats: {
+        withImages: validImageCount,
+        withoutImages: noImageCount
+      },
       data: formattedNews
     });
     
   } catch (error) {
-    console.error(' Error fetching news:', error);
+    console.error('❌ Error fetching news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch news',
@@ -52,34 +91,54 @@ router.get('/company/:symbol', async (req, res) => {
     
     const dateRange = finnhubService.getDateRange(parseInt(days));
     
-    console.log(` Fetching ${symbol} news from ${dateRange.from} to ${dateRange.to}`);
+    console.log(`📊 Fetching ${symbol} news from ${dateRange.from} to ${dateRange.to}`);
     
     const news = await finnhubService.getCompanyNews(symbol, dateRange.from, dateRange.to);
     
+    let validImageCount = 0;
+    let noImageCount = 0;
+    
     // แปลงข้อมูลให้ตรงกับ format ของ Frontend
-    const formattedNews = news.map((item, index) => ({
-      id: item.id || index,
-      title: item.headline,
-      source: item.source,
-      timeAgo: getTimeAgo(item.datetime),
-      category: 'Company News',
-      url: item.url,
-      image: item.image,
-      summary: item.summary,
-      datetime: item.datetime,
-      symbol: symbol.toUpperCase()
-    }));
+    const formattedNews = news.map((item, index) => {
+      let imageUrl = item.image;
+      
+      if (!isValidImageUrl(imageUrl)) {
+        imageUrl = null;
+        noImageCount++;
+      } else {
+        validImageCount++;
+      }
+      
+      return {
+        id: item.id || index,
+        title: item.headline,
+        source: item.source,
+        timeAgo: getTimeAgo(item.datetime),
+        category: 'Company News',
+        url: item.url,
+        image: imageUrl,
+        summary: item.summary,
+        datetime: item.datetime,
+        symbol: symbol.toUpperCase()
+      };
+    });
+    
+    console.log(`✅ ${symbol}: ${formattedNews.length} news (${validImageCount} with images, ${noImageCount} without)`);
     
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
       count: formattedNews.length,
       dateRange,
+      stats: {
+        withImages: validImageCount,
+        withoutImages: noImageCount
+      },
       data: formattedNews
     });
     
   } catch (error) {
-    console.error(' Error fetching company news:', error);
+    console.error('❌ Error fetching company news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch company news',
@@ -93,7 +152,7 @@ router.get('/quote/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
     
-    console.log(` Fetching quote for ${symbol}`);
+    console.log(`💰 Fetching quote for ${symbol}`);
     
     const quote = await finnhubService.getStockQuote(symbol);
     
@@ -113,7 +172,7 @@ router.get('/quote/:symbol', async (req, res) => {
     });
     
   } catch (error) {
-    console.error(' Error fetching quote:', error);
+    console.error('❌ Error fetching quote:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch stock quote',
@@ -135,7 +194,7 @@ router.get('/search', async (req, res) => {
       });
     }
     
-    console.log(` Searching stocks: ${query}`);
+    console.log(`🔍 Searching stocks: ${query}`);
     
     const searchResults = await finnhubService.searchSymbol(query);
     
@@ -146,7 +205,7 @@ router.get('/search', async (req, res) => {
     });
     
   } catch (error) {
-    console.error(' Error searching stocks:', error);
+    console.error('❌ Error searching stocks:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to search stocks',

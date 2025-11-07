@@ -62,13 +62,20 @@ const ImageWithFallback = ({
     };
   }, [src, lazy, priority, threshold, rootMargin]);
 
-  const handleError = () => {
+  const handleError = (e) => {
+    console.error('🖼️ Image load error:', {
+      src,
+      alt,
+      error: e.type
+    });
+    
     setHasError(true);
     setIsLoading(false);
     
     // Try alternative image formats if available
     if (src && src.includes('.webp')) {
       const fallbackSrc = src.replace('.webp', '.jpg');
+      console.log('🔄 Trying fallback format:', fallbackSrc);
       setImgSrc(fallbackSrc);
       setHasError(false);
       setIsLoading(true);
@@ -76,11 +83,13 @@ const ImageWithFallback = ({
   };
 
   const handleLoad = () => {
+    console.log('✅ Image loaded:', src);
     setIsLoading(false);
   };
 
   // Render fallback if error
   if (hasError) {
+    console.warn('⚠️ Showing fallback gradient for:', alt);
     return (
       <div 
         ref={imgRef}

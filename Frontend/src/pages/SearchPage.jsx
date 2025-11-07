@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { Search, Filter, X, TrendingUp, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useDebounce } from '../hooks/useDebounce';
@@ -21,6 +21,14 @@ const SearchPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
+  // ✅ ใช้ useRef เพื่อเก็บ addRecentSearch โดยไม่ trigger re-render
+  const addRecentSearchRef = useRef(addRecentSearch);
+  
+  useEffect(() => {
+    addRecentSearchRef.current = addRecentSearch;
+  }, [addRecentSearch]);
+  
   const categories = [
     { value: 'all', label: 'All Categories' },
     { value: 'stocks', label: 'Stocks' },
@@ -42,50 +50,51 @@ const SearchPage = () => {
     { value: 'popular', label: 'Most Popular' }
   ];
 
-const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
-  if (!query.trim() && currentFilters.category === 'all') {
-    setSearchResults([]);
-    return;
-  }
-  
-  setIsLoading(true);
-  setError(null);
-  
-  try {
-    const response = await fetch(`http://localhost:5001/api/news?limit=20&category=${currentFilters.category}`);
-    const data = await response.json();
-    
-    if (data.success) {
-      // กรองตาม search query
-      const filtered = data.data.filter(item => 
-        item.title.toLowerCase().includes(query.toLowerCase()) ||
-        item.summary?.toLowerCase().includes(query.toLowerCase())
-      );
-      
-      if (pageNum === 1) {
-        setSearchResults(filtered);
-      } else {
-        setSearchResults(prev => [...prev, ...filtered]);
-      }
-      
-      setHasMore(pageNum < 5);
-      
-      if (query.trim() && pageNum === 1) {
-        addRecentSearch(query);
-      }
-    } else {
-      setError('Failed to fetch search results');
+  // ✅ แก้ไข: เอา dependencies ที่ไม่จำเป็นออก
+  const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
+    if (!query.trim() && currentFilters.category === 'all') {
+      setSearchResults([]);
+      return;
     }
     
-  } catch (err) {
-    setError('Failed to fetch search results. Please try again.');
-    console.error('Search error:', err);
-  } finally {
-    setIsLoading(false);
-  }
-}, [addRecentSearch]);
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`http://localhost:5001/api/news?limit=20&category=${currentFilters.category}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // กรองตาม search query
+        const filtered = data.data.filter(item => 
+          item.title.toLowerCase().includes(query.toLowerCase()) ||
+          item.summary?.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        if (pageNum === 1) {
+          setSearchResults(filtered);
+        } else {
+          setSearchResults(prev => [...prev, ...filtered]);
+        }
+        
+        setHasMore(pageNum < 5);
+        
+        // ✅ ใช้ ref แทน dependency
+        if (query.trim() && pageNum === 1) {
+          addRecentSearchRef.current(query);
+        }
+      } else {
+        setError('Failed to fetch search results');
+      }
+      
+    } catch (err) {
+      setError('Failed to fetch search results. Please try again.');
+      console.error('Search error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // ✅ Empty dependencies - ไม่มี infinite loop
 
-  // (Effect, Memo, Handlers... เหมือนเดิม)
   useEffect(() => {
     if (debouncedSearchQuery) {
       setPage(1);
@@ -183,7 +192,7 @@ const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => 
               <Filter className="w-5 h-5" />
               <span>Filters</span>
               {Object.values(filters).some(v => v !== 'all' && v !== 'relevance') && (
-                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs"> {/* <-- แก้ไข */}
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">
                   Active
                 </span>
               )}
@@ -200,7 +209,7 @@ const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => 
                   <select
                     value={filters.category}
                     onChange={(e) => handleFilterChange('category', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" // <-- แก้ไข
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {categories.map(cat => (
                       <option key={cat.value} value={cat.value}>
@@ -217,7 +226,7 @@ const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => 
                   <select
                     value={filters.timeRange}
                     onChange={(e) => handleFilterChange('timeRange', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" // <-- แก้ไข
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {timeRanges.map(range => (
                       <option key={range.value} value={range.value}>
@@ -234,7 +243,7 @@ const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => 
                   <select
                     value={filters.sortBy}
                     onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" // <-- แก้ไข
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {sortOptions.map(option => (
                       <option key={option.value} value={option.value}>
@@ -331,7 +340,7 @@ const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => 
                   <button
                     onClick={handleLoadMore}
                     disabled={isLoading}
-                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" // <-- แก้ไข
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <div className="flex items-center gap-2">
