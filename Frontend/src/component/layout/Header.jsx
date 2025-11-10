@@ -1,12 +1,16 @@
+// component/layout/Header.jsx - WITH Beautiful Toggle
 import { useState } from 'react';
 import { Menu, X, Search } from 'lucide-react';
 import { useApp } from "../../context/AppContext";
+import { useLanguage } from "../../context/LanguageContext";
 import SearchBar from "./SearchBar";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
+import LanguageToggle from "../common/LanguageToggle";
 
 const Header = () => {
   const { setActiveTab } = useApp();
+  const { t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -37,6 +41,7 @@ const Header = () => {
       <header className="bg-gray-200 shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+            {/* Logo */}
             <div className="flex-shrink-0">
               <h1 
                 className="text-xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
@@ -45,22 +50,31 @@ const Header = () => {
                 LOGO
               </h1>
             </div>
-            <div className="hidden md:flex items-center space-x-3">
+
+            {/* Desktop Actions */}
+            <div className="hidden md:flex items-center space-x-4">
+              {/* ✨ Beautiful Language Toggle */}
+              <LanguageToggle />
+              
               <button 
                 onClick={handleSignIn}
                 className="bg-[#008235] hover:bg-[#004e20] text-white font-medium px-6 py-2 rounded-full transition-colors duration-200"
               >
-                Sign In
+                {t('header.signIn')}
               </button>
               <button 
                 onClick={handleSignUp}
                 className="text-gray-600 hover:text-gray-900 font-medium px-4 py-2 transition-colors duration-200"
               >
-                Sign Up
+                {t('header.signUp')}
               </button>
             </div>
 
+            {/* Mobile Actions */}
             <div className="flex md:hidden items-center space-x-2">
+              {/* ✨ Language Toggle - Mobile */}
+              <LanguageToggle />
+              
               <button
                 onClick={() => {
                   setMobileSearchOpen(!mobileSearchOpen);
@@ -102,20 +116,19 @@ const Header = () => {
                 onClick={handleSignIn}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-full transition-colors duration-200"
               >
-                Sign In
+                {t('header.signIn')}
               </button>
               <button 
                 onClick={handleSignUp}
                 className="w-full text-gray-600 hover:text-gray-900 font-medium px-6 py-2 border border-gray-300 rounded-full transition-colors duration-200"
               >
-                Sign Up
+                {t('header.signUp')}
               </button>
             </div>
           </div>
         )}
       </header>
 
-     
       {showLogin && (
         <LoginPage 
           onClose={() => setShowLogin(false)}
@@ -123,7 +136,6 @@ const Header = () => {
         />
       )}
 
-     
       {showSignup && (
         <SignupPage 
           onClose={() => setShowSignup(false)}

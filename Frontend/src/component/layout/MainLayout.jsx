@@ -1,4 +1,3 @@
-// component/layout/MainLayout.jsx - CORRECT VERSION
 import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from "./Header";
@@ -17,7 +16,6 @@ const MainLayout = () => {
           </div>
         }
       >
-        {/* Outlet จะแสดง page component ที่ match กับ route */}
         <Outlet />
       </Suspense>
     </div>

@@ -4,11 +4,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Filter, X, TrendingUp, Clock } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
 import { SkeletonCard } from '../component/common/Loading';
+import { useLanguage } from '../context/LanguageContext';
+
 
 const NewsCard = lazy(() => import('../component/News/NewsCard'));
 
 const SearchPage = () => {
   const navigate = useNavigate();
+    const { t } = useLanguage();
+
   const [searchParams, setSearchParams] = useSearchParams();
   
   // ✅ อ่าน query params จาก URL

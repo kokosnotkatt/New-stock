@@ -1,16 +1,18 @@
-// component/layout/Navigation.jsx - Hybrid Version (Context + Router)
+// component/layout/Navigation.jsx - WITH Translation
 import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 const Navigation = () => {
   const location = useLocation();
   const { setActiveTab } = useApp();
+  const { t } = useLanguage();
 
   const navigationItems = [
-    { name: 'Home', path: '/', tab: 'Home' },
-    { name: 'Search', path: '/search', tab: 'Search' },
-    { name: 'Watchlist', path: '/watchlist', tab: 'Watchlist' }
+    { name: t('nav.home'), path: '/', tab: 'Home' },
+    { name: t('nav.search'), path: '/search', tab: 'Search' },
+    { name: t('nav.watchlist'), path: '/watchlist', tab: 'Watchlist' }
   ];
 
   // ✅ Sync Context activeTab กับ current route
@@ -34,7 +36,7 @@ const Navigation = () => {
           <div className="flex justify-center space-x-8 h-12">
             {navigationItems.map((item) => (
               <NavLink
-                key={item.name}
+                key={item.path}
                 to={item.path}
                 end={item.path === '/'}
                 className={({ isActive }) =>
@@ -58,7 +60,7 @@ const Navigation = () => {
           <div className="flex justify-around h-12">
             {navigationItems.map((item) => (
               <NavLink
-                key={item.name}
+                key={item.path}
                 to={item.path}
                 end={item.path === '/'}
                 className={({ isActive }) =>

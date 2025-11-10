@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, X, AlertCircle } from 'lucide-react';
 import authService from '../services/authService';
 
+
 const LoginPage = ({ onClose, onSwitchToSignup, onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -13,6 +14,8 @@ const LoginPage = ({ onClose, onSwitchToSignup, onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
   const emailInputRef = useRef(null);
+  const { t } = useLanguage();
+
 
   useEffect(() => {
     emailInputRef.current?.focus();
