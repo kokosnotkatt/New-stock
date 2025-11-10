@@ -1,25 +1,42 @@
-// App.jsx - Optimized with lazy loading and code splitting
+// App.jsx - WITH BrowserRouter (Option B)
 import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import ErrorBoundary from "./component/common/ErrorBoundary";
-import { LoadingSpinner } from "./component/common/Loading";
+import MainLayout from './component/layout/MainLayout';
+import { LoadingSpinner } from './component/common/Loading';
 
-// Lazy load the main layout to reduce initial bundle size
-const MainLayout = lazy(() => import('./component/layout/MainLayout'));
+// Lazy load pages
+const HomePage = lazy(() => import('./pages/HomePage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const WatchlistPage = lazy(() => import('./pages/WatchlistPage'));
+const NewsDetailPage = lazy(() => import('./pages/NewsDetailPage'));
 
 function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
-        <Suspense 
-          fallback={
-            <div className="min-h-screen flex items-center justify-center bg-gray-200">
-              <LoadingSpinner size="lg" />
-            </div>
-          }
-        >
-          <MainLayout />
-        </Suspense>
+        <BrowserRouter>
+          <Suspense 
+            fallback={
+              <div className="flex justify-center items-center min-h-screen bg-gray-200">
+                <LoadingSpinner size="lg" />
+              </div>
+            }
+          >
+            <Routes>
+              {/* Routes with Layout (Header + Nav) */}
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<HomePage />} />
+                <Route path="search" element={<SearchPage />} />
+                <Route path="watchlist" element={<WatchlistPage />} />
+              </Route>
+              
+              {/* News Detail - Full Screen (No Layout) */}
+              <Route path="/news/:newsId" element={<NewsDetailPage />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
       </AppProvider>
     </ErrorBoundary>
   );

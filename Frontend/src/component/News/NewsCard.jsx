@@ -1,8 +1,9 @@
 import React from 'react';
 import { Newspaper } from 'lucide-react';
 import ImageWithFallback from '../common/ImageWithFallback'; 
+import SymbolBadges from './SymbolBadges';
 
-const NewsCard = React.memo(({ article, onClick }) => {
+const NewsCard = React.memo(({ article, onClick, onSymbolClick }) => {
   const getCategoryColor = (category) => {
     const colors = {
       'Stock Analysis': 'bg-blue-100 text-blue-800',
@@ -24,6 +25,15 @@ const NewsCard = React.memo(({ article, onClick }) => {
 
   const handleClick = () => {
     onClick?.(article);
+  };
+
+  const handleSymbolClick = (symbol) => {
+    if (onSymbolClick) {
+      onSymbolClick(symbol);
+    } else {
+      // Default: นำทางไปหน้าค้นหา symbol นั้น
+      console.log('Navigate to symbol:', symbol);
+    }
   };
 
   // ✅ ถ้ามีรูป - Layout แบบเดิม
@@ -60,7 +70,15 @@ const NewsCard = React.memo(({ article, onClick }) => {
               </p>
             )}
             
-            <div className="flex items-center text-sm text-gray-500">
+            {/* 🆕 แสดง Stock Symbols */}
+            {article.symbols && article.symbols.length > 0 && (
+              <SymbolBadges 
+                symbols={article.symbols} 
+                onSymbolClick={handleSymbolClick}
+              />
+            )}
+            
+            <div className="flex items-center text-sm text-gray-500 mt-2">
               <span className="font-medium">{article.source}</span>
             </div>
           </div>
@@ -126,7 +144,15 @@ const NewsCard = React.memo(({ article, onClick }) => {
             </p>
           )}
           
-          <div className="flex items-center justify-between">
+          {/* 🆕 แสดง Stock Symbols */}
+          {article.symbols && article.symbols.length > 0 && (
+            <SymbolBadges 
+              symbols={article.symbols} 
+              onSymbolClick={handleSymbolClick}
+            />
+          )}
+          
+          <div className="flex items-center justify-between mt-3">
             <span className="text-sm font-medium text-gray-600">{article.source}</span>
             <svg 
               className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" 
@@ -151,7 +177,8 @@ const NewsCard = React.memo(({ article, onClick }) => {
     prevProps.article.id === nextProps.article.id &&
     prevProps.article.title === nextProps.article.title &&
     prevProps.article.score === nextProps.article.score &&
-    prevProps.article.image === nextProps.article.image
+    prevProps.article.image === nextProps.article.image &&
+    JSON.stringify(prevProps.article.symbols) === JSON.stringify(nextProps.article.symbols)
   );
 });
 

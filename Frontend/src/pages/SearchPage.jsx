@@ -1,14 +1,20 @@
+// Frontend/src/pages/SearchPage.jsx - With URL Params & Navigation
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Filter, X, TrendingUp, Clock } from 'lucide-react';
-import { useApp } from '../context/AppContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { SkeletonCard } from '../component/common/Loading';
 
 const NewsCard = lazy(() => import('../component/News/NewsCard'));
 
 const SearchPage = () => {
-  const { searchQuery, setSearchQuery, recentSearches, addRecentSearch, clearRecentSearches } = useApp();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
+  // ✅ อ่าน query params จาก URL
+  const symbolFromUrl = searchParams.get('symbol') || '';
+  
+  const [searchQuery, setSearchQuery] = useState(symbolFromUrl);
   const [filters, setFilters] = useState({
     category: 'all',
     timeRange: 'all',
@@ -20,14 +26,17 @@ const SearchPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [recentSearches, setRecentSearches] = useState([]);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   
-  // ✅ ใช้ useRef เพื่อเก็บ addRecentSearch โดยไม่ trigger re-render
-  const addRecentSearchRef = useRef(addRecentSearch);
-  
+  // ✅ Sync searchQuery กับ URL
   useEffect(() => {
-    addRecentSearchRef.current = addRecentSearch;
-  }, [addRecentSearch]);
+    if (searchQuery) {
+      setSearchParams({ symbol: searchQuery });
+    } else {
+      setSearchParams({});
+    }
+  }, [searchQuery, setSearchParams]);
   
   const categories = [
     { value: 'all', label: 'All Categories' },
@@ -37,6 +46,7 @@ const SearchPage = () => {
     { value: 'crypto', label: 'Cryptocurrency' },
     { value: 'tech', label: 'Technology' }
   ];
+  
   const timeRanges = [
     { value: 'all', label: 'All Time' },
     { value: 'today', label: 'Today' },
@@ -44,13 +54,13 @@ const SearchPage = () => {
     { value: 'month', label: 'This Month' },
     { value: 'year', label: 'This Year' }
   ];
+  
   const sortOptions = [
     { value: 'relevance', label: 'Most Relevant' },
     { value: 'recent', label: 'Most Recent' },
     { value: 'popular', label: 'Most Popular' }
   ];
 
-  // ✅ แก้ไข: เอา dependencies ที่ไม่จำเป็นออก
   const performSearch = useCallback(async (query, currentFilters, pageNum = 1) => {
     if (!query.trim() && currentFilters.category === 'all') {
       setSearchResults([]);
@@ -61,14 +71,16 @@ const SearchPage = () => {
     setError(null);
     
     try {
-      const response = await fetch(`http://localhost:5001/api/news?limit=20&category=${currentFilters.category}`);
+      const response = await fetch(
+        `http://localhost:5001/api/news?limit=20&category=${currentFilters.category}&detectSymbols=true`
+      );
       const data = await response.json();
       
       if (data.success) {
-        // กรองตาม search query
         const filtered = data.data.filter(item => 
           item.title.toLowerCase().includes(query.toLowerCase()) ||
-          item.summary?.toLowerCase().includes(query.toLowerCase())
+          item.summary?.toLowerCase().includes(query.toLowerCase()) ||
+          (item.symbols && item.symbols.some(s => s.toLowerCase().includes(query.toLowerCase())))
         );
         
         if (pageNum === 1) {
@@ -79,9 +91,12 @@ const SearchPage = () => {
         
         setHasMore(pageNum < 5);
         
-        // ✅ ใช้ ref แทน dependency
+        // Add to recent searches
         if (query.trim() && pageNum === 1) {
-          addRecentSearchRef.current(query);
+          setRecentSearches(prev => {
+            const filtered = prev.filter(s => s !== query);
+            return [query, ...filtered].slice(0, 5);
+          });
         }
       } else {
         setError('Failed to fetch search results');
@@ -93,7 +108,7 @@ const SearchPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []); // ✅ Empty dependencies - ไม่มี infinite loop
+  }, []);
 
   useEffect(() => {
     if (debouncedSearchQuery) {
@@ -147,13 +162,23 @@ const SearchPage = () => {
 
   const handleRecentSearchClick = useCallback((query) => {
     setSearchQuery(query);
-  }, [setSearchQuery]);
+  }, []);
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
     setSearchResults([]);
     setPage(1);
-  }, [setSearchQuery]);
+    setSearchParams({});
+  }, [setSearchParams]);
+
+  const handleNewsClick = (article) => {
+    console.log('Navigating to news detail:', article.id);
+    navigate(`/news/${article.id}`);
+  };
+
+  const handleSymbolClick = (symbol) => {
+    setSearchQuery(symbol);
+  };
 
   return (
     <div className="min-h-screen bg-gray-200">
@@ -161,7 +186,6 @@ const SearchPage = () => {
         {/* Search Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Input */}
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -170,7 +194,7 @@ const SearchPage = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search for stocks, news, topics..."
-                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent" 
+                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent"
                   autoFocus
                 />
                 {searchQuery && (
@@ -203,52 +227,40 @@ const SearchPage = () => {
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                   <select
                     value={filters.category}
                     onChange={(e) => handleFilterChange('category', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {categories.map(cat => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
+                      <option key={cat.value} value={cat.value}>{cat.label}</option>
                     ))}
                   </select>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Time Range
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time Range</label>
                   <select
                     value={filters.timeRange}
                     onChange={(e) => handleFilterChange('timeRange', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {timeRanges.map(range => (
-                      <option key={range.value} value={range.value}>
-                        {range.label}
-                      </option>
+                      <option key={range.value} value={range.value}>{range.label}</option>
                     ))}
                   </select>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sort By
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
                   <select
                     value={filters.sortBy}
                     onChange={(e) => handleFilterChange('sortBy', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {sortOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </div>
@@ -292,33 +304,21 @@ const SearchPage = () => {
                   {filteredResults.map((result) => (
                     <div key={result.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                       <NewsCard
-                        article={{
-                          ...result,
-                          url: `/news/${result.id}`,
-                          image: result.image
-                        }}
-                        onClick={() => console.log('Navigate to:', result)}
+                        article={result}
+                        onClick={handleNewsClick}
+                        onSymbolClick={handleSymbolClick}
                       />
-                      {result.excerpt && (
-                        <div className="px-6 pb-4 -mt-2">
-                          <p className="text-sm text-gray-600">{result.excerpt}</p>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </Suspense>
               ) : searchQuery && !isLoading ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
                   <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    No results found
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    Try adjusting your search terms or filters
-                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No results found</h3>
+                  <p className="text-gray-600 mb-4">Try adjusting your search terms or filters</p>
                   <button
                     onClick={handleClearSearch}
-                    className="text-green-600 hover:text-green-700 font-medium" 
+                    className="text-green-600 hover:text-green-700 font-medium"
                   >
                     Clear search
                   </button>
@@ -326,12 +326,8 @@ const SearchPage = () => {
               ) : !searchQuery && recentSearches.length === 0 ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
                   <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Start searching
-                  </h3>
-                  <p className="text-gray-600">
-                    Enter keywords to search for stocks, news, and market trends
-                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Start searching</h3>
+                  <p className="text-gray-600">Enter keywords to search for stocks, news, and market trends</p>
                 </div>
               ) : null}
               
@@ -365,7 +361,7 @@ const SearchPage = () => {
                     <h3 className="font-semibold text-gray-900">Recent Searches</h3>
                   </div>
                   <button
-                    onClick={clearRecentSearches}
+                    onClick={() => setRecentSearches([])}
                     className="text-xs text-gray-500 hover:text-gray-700"
                   >
                     Clear

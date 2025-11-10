@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import NewsCard from './NewsCard';
 
-const NewsList = ({ onNewsClick }) => {
+const NewsList = ({ onNewsClick, onSymbolClick }) => {
   const [newsArticles, setNewsArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,25 +13,24 @@ const NewsList = ({ onNewsClick }) => {
   const fetchNews = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5001/api/news?limit=20');
+      // ✅ เปิดใช้ symbol detection โดย default
+      const response = await fetch('http://localhost:5001/api/news?limit=20&detectSymbols=true');
       const data = await response.json();
       
       if (data.success) {
-        // ✅ เพิ่ม validation และ fallback image
-        const processedNews = data.data.map(article => ({
-          ...article,
-          // ถ้าไม่มีรูป หรือรูปเสีย ใช้ placeholder
-          image: article.image && article.image.startsWith('http') 
-            ? article.image 
-            : `https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&h=300&fit=crop&auto=format`
-        }));
+        setNewsArticles(data.data);
+        console.log('✅ Loaded news:', data.data.length);
+        console.log('📊 Stats:', data.stats);
         
-        setNewsArticles(processedNews);
-        console.log('✅ Loaded news:', processedNews.length);
+        // Debug: แสดงข่าวที่มี symbols
+        const newsWithSymbols = data.data.filter(n => n.symbols && n.symbols.length > 0);
+        console.log(`🔍 Found ${newsWithSymbols.length} articles with detected symbols`);
         
-        // Debug: แสดง URL รูปแรก
-        if (processedNews.length > 0) {
-          console.log('🖼️ First image URL:', processedNews[0].image);
+        if (newsWithSymbols.length > 0) {
+          console.log('📰 Sample article with symbols:', {
+            title: newsWithSymbols[0].title,
+            symbols: newsWithSymbols[0].symbols
+          });
         }
       } else {
         setError('Failed to fetch news');
@@ -49,6 +48,13 @@ const NewsList = ({ onNewsClick }) => {
       onNewsClick(article);
     } else {
       window.open(article.url, '_blank');
+    }
+  };
+
+  const handleSymbolClick = (symbol) => {
+    console.log('Symbol clicked:', symbol);
+    if (onSymbolClick) {
+      onSymbolClick(symbol);
     }
   };
 
@@ -85,9 +91,16 @@ const NewsList = ({ onNewsClick }) => {
           <NewsCard 
             article={article} 
             onClick={handleNewsClick}
+            onSymbolClick={handleSymbolClick}
           />
         </div>
       ))}
+      
+      {newsArticles.length === 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+          <p className="text-gray-600">No news available</p>
+        </div>
+      )}
     </div>
   );
 };
