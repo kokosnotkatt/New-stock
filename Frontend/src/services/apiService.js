@@ -199,10 +199,11 @@ class ApiService {
       category = "all",
       sortBy = "recent",
       search = "",
+      language, // 1. ⬇️ เพิ่มตัวแปร language
     } = params;
 
     const url = "/news";
-    const cacheKey = this.getCacheKey(url, params);
+    const cacheKey = this.getCacheKey(url, params); // cache key จะรวม language ไปด้วย
 
     // Check cache first
     const cached = this.getFromCache(cacheKey);
@@ -220,6 +221,7 @@ class ApiService {
             category: category !== "all" ? category : undefined,
             sortBy,
             search: search || undefined,
+            language, // 2. ⬇️ ส่ง language ไปยัง Backend
           },
         });
 

@@ -1,28 +1,40 @@
+// 1. ⬇️ Import 'useLanguage' แทน 'LanguageContext' (และลบ 'useContext' ที่ไม่จำเป็น)
 import { useState, useEffect } from 'react';
 import NewsCard from './NewsCard';
+import apiService from '../../services/apiService'; 
+import { useLanguage } from '../../context/LanguageContext'; // (โปรดตรวจสอบ path)
 
 const NewsList = ({ onNewsClick, onSymbolClick }) => {
   const [newsArticles, setNewsArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // 2. ⬇️ เรียกใช้ hook 'useLanguage()'
+  const { language } = useLanguage();
 
   useEffect(() => {
     fetchNews();
-  }, []);
+    // 3. ⬇️ สั่งให้ useEffect นี้ทำงานใหม่ (ดึงข่าวใหม่) ทุกครั้งที่ language เปลี่ยน
+  }, [language]); 
 
   const fetchNews = async () => {
     try {
       setLoading(true);
-      // ✅ เปิดใช้ symbol detection โดย default
-      const response = await fetch('http://localhost:5001/api/news?limit=20&detectSymbols=true');
-      const data = await response.json();
+      setError(null); 
+      
+      // 4. ⬇️ ส่ง category: 'stocks' และ language ปัจจุบัน ไปให้ apiService
+      const data = await apiService.fetchNews({
+        limit: 20,
+        category: 'stocks',
+        language: language // ส่ง 'th' หรือ 'en' ไป
+      });
       
       if (data.success) {
         setNewsArticles(data.data);
-        console.log('✅ Loaded news:', data.data.length);
+        // 5. ⬇️ ปรับ Log ให้เห็นภาษาที่ดึงมา
+        console.log(`✅ Loaded STOCK news (${language}):`, data.data.length); 
         console.log('📊 Stats:', data.stats);
         
-        // Debug: แสดงข่าวที่มี symbols
         const newsWithSymbols = data.data.filter(n => n.symbols && n.symbols.length > 0);
         console.log(`🔍 Found ${newsWithSymbols.length} articles with detected symbols`);
         
@@ -33,10 +45,11 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
           });
         }
       } else {
-        setError('Failed to fetch news');
+        // 6. ⬇️ ใช้ข้อความจาก t() ถ้ามี (หรือใช้จากไฟล์ context)
+        setError(data.message || 'Failed to fetch news');
       }
     } catch (err) {
-      setError('Error connecting to server');
+      setError(err.message || 'Error connecting to server');
       console.error('❌ Error fetching news:', err);
     } finally {
       setLoading(false);
@@ -62,6 +75,7 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent mx-auto"></div>
+        {/* 7. ⬇️ (Optional) ใช้ t() สำหรับข้อความ Loading */}
         <p className="mt-4 text-gray-600">Loading news...</p>
       </div>
     );
@@ -75,6 +89,7 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
           onClick={fetchNews}
           className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
         >
+          {/* 8. ⬇️ (Optional) ใช้ t() สำหรับปุ่ม Retry */}
           Retry
         </button>
       </div>
