@@ -5,9 +5,6 @@ dotenv.config();
 
 class SymbolDetector {
   constructor() {
-    this.apiKey = process.env.FINNHUB_API_KEY;
-    this.baseURL = 'https://finnhub.io/api/v1';
-    
     this.symbolCache = new Map();
     
     this.popularStocks = new Map([
@@ -27,6 +24,16 @@ class SymbolDetector {
       ['WFC', 'Wells Fargo'],
       ['GS', 'Goldman Sachs'],
       ['MS', 'Morgan Stanley'],
+      ['V', 'Visa'],
+      ['MA', 'Mastercard'],
+      
+      // Tech
+      ['INTC', 'Intel'],
+      ['CSCO', 'Cisco'],
+      ['ORCL', 'Oracle'],
+      ['IBM', 'IBM'],
+      ['CRM', 'Salesforce'],
+      ['ADBE', 'Adobe'],
       
       // Others
       ['DIS', 'Disney'],
@@ -36,14 +43,27 @@ class SymbolDetector {
       ['LYFT', 'Lyft'],
       ['ABNB', 'Airbnb'],
       ['COIN', 'Coinbase'],
+      ['SQ', 'Block'],
+      ['SHOP', 'Shopify'],
       
       // Retail
       ['WMT', 'Walmart'],
       ['TGT', 'Target'],
       ['COST', 'Costco'],
+      ['HD', 'Home Depot'],
       
       // Crypto-related
-      ['MSTR', 'MicroStrategy']
+      ['MSTR', 'MicroStrategy'],
+      
+      // Auto
+      ['F', 'Ford'],
+      ['GM', 'General Motors'],
+      ['RIVN', 'Rivian'],
+      ['LCID', 'Lucid'],
+      
+      // Energy
+      ['XOM', 'Exxon Mobil'],
+      ['CVX', 'Chevron']
     ]);
     
     // Company name variations
@@ -69,21 +89,23 @@ class SymbolDetector {
       ['Uber Technologies', 'UBER'],
       ['Uber', 'UBER'],
       ['Coinbase', 'COIN'],
-      ['MicroStrategy', 'MSTR']
+      ['MicroStrategy', 'MSTR'],
+      ['JPMorgan Chase', 'JPM'],
+      ['Bank of America', 'BAC'],
+      ['Goldman Sachs', 'GS'],
+      ['Morgan Stanley', 'MS']
     ]);
   }
 
   /**
    * หา symbols จากข้อความข่าว
-   * @param {Object} article - ข่าวที่ต้องการตรวจสอบ
-   * @returns {Array<string>} - Array of detected symbols
    */
   detectSymbols(article) {
-    const { headline = '', summary = '' } = article;
-    const text = `${headline} ${summary}`.toLowerCase();
+    const { headline = '', summary = '', title = '' } = article;
+    const text = `${headline} ${title} ${summary}`.toLowerCase();
     const detectedSymbols = new Set();
 
-    // 1. ตรวจหา symbols ที่มี $ นำหน้า (เช่น $AAPL)
+    // 1. ตรวจหา symbols ที่มี $ นำหน้า
     const dollarSymbols = text.match(/\$[A-Z]{1,5}/gi);
     if (dollarSymbols) {
       dollarSymbols.forEach(symbol => {
@@ -91,7 +113,7 @@ class SymbolDetector {
       });
     }
 
-    // 2. ตรวจหา symbols ในวงเล็บ (เช่น Apple (AAPL))
+    // 2. ตรวจหา symbols ในวงเล็บ
     const bracketSymbols = text.match(/\([A-Z]{1,5}\)/g);
     if (bracketSymbols) {
       bracketSymbols.forEach(match => {
@@ -102,7 +124,7 @@ class SymbolDetector {
       });
     }
 
-    // 3. ตรวจหาชื่อบริษัทที่รู้จัก
+    // 3. ตรวจหาชื่อบริษัท
     for (const [companyName, symbol] of this.companyNameMap.entries()) {
       const regex = new RegExp(`\\b${companyName}\\b`, 'i');
       if (regex.test(text)) {
@@ -110,7 +132,7 @@ class SymbolDetector {
       }
     }
 
-    // 4. ตรวจหา popular symbols ที่อาจไม่มี $
+    // 4. ตรวจหา popular symbols
     for (const [symbol, companyName] of this.popularStocks.entries()) {
       const symbolRegex = new RegExp(`\\b${symbol}\\b`, 'i');
       const nameRegex = new RegExp(`\\b${companyName}\\b`, 'i');
@@ -124,29 +146,26 @@ class SymbolDetector {
   }
 
   /**
-   * ตรวจสอบว่า symbol นี้ valid หรือไม่
+   * ตรวจสอบว่า symbol valid หรือไม่
    */
   isValidSymbol(symbol) {
-    // Symbol ทั่วไปมีความยาว 1-5 ตัวอักษร
     if (!symbol || symbol.length < 1 || symbol.length > 5) {
       return false;
     }
     
-    // ต้องเป็นตัวอักษรทั้งหมด
     if (!/^[A-Z]+$/.test(symbol)) {
       return false;
     }
     
-    // ตรวจสอบว่าเป็น symbol ที่รู้จักหรือไม่
     if (this.popularStocks.has(symbol)) {
       return true;
     }
     
-    return true; // อนุญาตให้ผ่านไปก่อน
+    return true;
   }
 
   /**
-   * Batch detect symbols สำหรับหลายข่าว
+   * Batch detect symbols
    */
   detectSymbolsForArticles(articles) {
     const results = articles.map(article => ({
@@ -158,7 +177,7 @@ class SymbolDetector {
   }
 
   /**
-   * ค้นหาข่าวที่เกี่ยวข้องกับ symbol นั้นๆ
+   * ค้นหาข่าวที่เกี่ยวข้องกับ symbol
    */
   filterArticlesBySymbol(articles, symbol) {
     const symbolUpper = symbol.toUpperCase();
@@ -170,7 +189,7 @@ class SymbolDetector {
   }
 
   /**
-   * หา trending symbols จากข่าว
+   * หา trending symbols
    */
   getTrendingSymbols(articles, limit = 10) {
     const symbolCount = new Map();
@@ -182,7 +201,6 @@ class SymbolDetector {
       });
     });
     
-    // Sort by frequency
     const sorted = Array.from(symbolCount.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
@@ -196,74 +214,30 @@ class SymbolDetector {
   }
 
   /**
-   * ค้นหาข้อมูล symbol จาก Finnhub (สำหรับ symbol ที่ไม่รู้จัก)
+   * ดึงชื่อบริษัทจาก symbol
    */
-  async lookupSymbol(query) {
-    try {
-      const response = await axios.get(`${this.baseURL}/search`, {
-        params: {
-          q: query,
-          token: this.apiKey
-        }
-      });
-      
-      if (response.data.count > 0) {
-        const results = response.data.result.slice(0, 5);
-        
-        // เก็บเข้า cache
-        results.forEach(result => {
-          this.symbolCache.set(result.symbol, result.description);
-        });
-        
-        return results;
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('❌ Symbol lookup error:', error.message);
-      return [];
-    }
-  }
-
-  /**
-   * ตรวจสอบและเติมข้อมูล symbol ที่ขาดหาย
-   */
-  async enrichSymbolData(symbols) {
-    const enriched = [];
+  getCompanyName(symbol) {
+    const symbolUpper = symbol.toUpperCase();
     
-    for (const symbol of symbols) {
-      if (this.symbolCache.has(symbol)) {
-        enriched.push({
-          symbol,
-          name: this.symbolCache.get(symbol)
-        });
-      } else if (this.popularStocks.has(symbol)) {
-        enriched.push({
-          symbol,
-          name: this.popularStocks.get(symbol)
-        });
-      } else {
-        // Lookup จาก API
-        const results = await this.lookupSymbol(symbol);
-        if (results.length > 0) {
-          enriched.push({
-            symbol,
-            name: results[0].description
-          });
-        } else {
-          enriched.push({
-            symbol,
-            name: symbol
-          });
-        }
+    if (this.popularStocks.has(symbolUpper)) {
+      return this.popularStocks.get(symbolUpper);
+    }
+    
+    if (this.symbolCache.has(symbolUpper)) {
+      return this.symbolCache.get(symbolUpper);
+    }
+    
+    for (const [companyName, sym] of this.companyNameMap.entries()) {
+      if (sym === symbolUpper) {
+        return companyName;
       }
     }
     
-    return enriched;
+    return symbolUpper;
   }
 
   /**
-   * สร้าง summary ของ symbols ที่พบในชุดข่าว
+   * สร้าง summary
    */
   generateSymbolSummary(articles) {
     const symbolData = new Map();
@@ -284,7 +258,7 @@ class SymbolDetector {
         const data = symbolData.get(symbol);
         data.articles.push({
           id: article.id,
-          headline: article.headline,
+          headline: article.headline || article.title,
           datetime: article.datetime
         });
         data.mentionCount++;

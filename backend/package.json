@@ -1,24 +1,31 @@
 {
   "name": "stock-news-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Stock News API with Google News RSS + Yahoo Finance",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test": "echo \"No tests yet\" && exit 0"
   },
-  "keywords": [],
+  "keywords": [
+    "stock",
+    "news",
+    "google-news",
+    "yahoo-finance",
+    "api"
+  ],
   "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "MIT",
   "dependencies": {
-    "@google-cloud/translate": "^9.2.1",
-    "axios": "^1.13.0",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.0.1"
   }
 }

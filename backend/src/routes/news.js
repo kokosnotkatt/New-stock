@@ -1,30 +1,50 @@
 import express from 'express';
-import finnhubService from '../services/finnhubService.js';
+import googleNewsService from '../services/googleNewsService.js';
+import yahooFinanceService from '../services/yahooFinanceService.js';
 import symbolDetector from '../services/symbolDetector.js';
 
 const router = express.Router();
 
-// ✅ Helper: ตรวจสอบว่า image URL valid หรือไม่
-const isValidImageUrl = (url) => {
-  if (!url) return false;
-  if (!url.startsWith('http')) return false;
-  
-  const blacklistedDomains = [
-    'static2.finnhub.io',
-    'static.finnhub.io'
-  ];
-  
-  return !blacklistedDomains.some(domain => url.includes(domain));
-};
-
-// 🆕 GET /api/news - ดึงข่าวล่าสุด พร้อม detect symbols
+// 🆕 GET /api/news - ดึงข่าวล่าสุดจาก Google News (ไทย + อังกฤษ)
 router.get('/', async (req, res) => {
   try {
-    const { category = 'general', limit = 50, detectSymbols: shouldDetect = 'true' } = req.query;
+    const { 
+      category = 'general', 
+      limit = 50, 
+      detectSymbols: shouldDetect = 'true',
+      language = 'both' // 'th', 'en', 'both'
+    } = req.query;
     
-    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, detect: ${shouldDetect}`);
+    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, lang: ${language}`);
     
-    const news = await finnhubService.getMarketNews(category);
+    let news = [];
+    
+    if (language === 'both') {
+      // ดึงข่าวทั้งไทยและอังกฤษ
+      if (category === 'general') {
+        news = await googleNewsService.getMultiLanguageNews(null, 25);
+      } else {
+        const [thNews, enNews] = await Promise.allSettled([
+          googleNewsService.getNewsByCategory(category, 'th', 'TH'),
+          googleNewsService.getNewsByCategory(category, 'en', 'US')
+        ]);
+        
+        if (thNews.status === 'fulfilled') news = [...news, ...thNews.value];
+        if (enNews.status === 'fulfilled') news = [...news, ...enNews.value];
+        
+        news.sort((a, b) => b.datetime - a.datetime);
+      }
+    } else {
+      // ดึงข่าวภาษาเดียว
+      const region = language === 'th' ? 'TH' : 'US';
+      
+      if (category === 'general') {
+        news = await googleNewsService.getNews(null, language, region);
+      } else {
+        news = await googleNewsService.getNewsByCategory(category, language, region);
+      }
+    }
+    
     const limitedNews = news.slice(0, parseInt(limit));
     
     let validImageCount = 0;
@@ -32,30 +52,24 @@ router.get('/', async (req, res) => {
     
     // แปลงข้อมูลให้ตรงกับ format ของ Frontend
     let formattedNews = limitedNews.map((item, index) => {
-      let imageUrl = item.image;
-      
-      if (!isValidImageUrl(imageUrl)) {
-        imageUrl = null;
-        noImageCount++;
-        
-        if (item.image) {
-          console.log(`⚠️  Removed invalid image: ${item.image.substring(0, 60)}...`);
-        }
-      } else {
+      if (item.image) {
         validImageCount++;
+      } else {
+        noImageCount++;
       }
       
       return {
         id: item.id || index,
-        title: item.headline,
-        headline: item.headline, // เก็บไว้สำหรับ symbol detection
+        title: item.headline || item.title,
+        headline: item.headline || item.title,
         source: item.source,
         timeAgo: getTimeAgo(item.datetime),
-        category: getCategoryName(item.category),
+        category: item.category,
         url: item.url,
-        image: imageUrl,
+        image: item.image,
         summary: item.summary,
-        datetime: item.datetime
+        datetime: item.datetime,
+        language: item.language
       };
     });
     
@@ -64,7 +78,6 @@ router.get('/', async (req, res) => {
       console.log('🔍 Detecting symbols in news...');
       formattedNews = symbolDetector.detectSymbolsForArticles(formattedNews);
       
-      // นับจำนวนข่าวที่มี symbols
       const newsWithSymbols = formattedNews.filter(n => n.symbols && n.symbols.length > 0).length;
       console.log(`✅ Detected symbols in ${newsWithSymbols}/${formattedNews.length} articles`);
     }
@@ -79,7 +92,11 @@ router.get('/', async (req, res) => {
         withoutImages: noImageCount,
         withSymbols: shouldDetect === 'true' 
           ? formattedNews.filter(n => n.symbols && n.symbols.length > 0).length 
-          : undefined
+          : undefined,
+        languages: {
+          th: formattedNews.filter(n => n.language === 'th').length,
+          en: formattedNews.filter(n => n.language === 'en').length
+        }
       },
       data: formattedNews
     });
@@ -97,12 +114,12 @@ router.get('/', async (req, res) => {
 // 🆕 GET /api/news/symbols/trending - ดึง trending symbols
 router.get('/symbols/trending', async (req, res) => {
   try {
-    const { limit = 10, days = 1 } = req.query;
+    const { limit = 10 } = req.query;
     
-    console.log(`📊 Fetching trending symbols - limit: ${limit}, days: ${days}`);
+    console.log(`📊 Fetching trending symbols - limit: ${limit}`);
     
     // ดึงข่าวล่าสุด
-    const news = await finnhubService.getMarketNews('general');
+    const news = await googleNewsService.getMultiLanguageNews(null, 50);
     
     // หา trending symbols
     const trending = symbolDetector.getTrendingSymbols(news, parseInt(limit));
@@ -129,46 +146,43 @@ router.get('/symbols/trending', async (req, res) => {
 router.get('/by-symbol/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { limit = 20, days = 7 } = req.query;
+    const { limit = 20, language = 'both' } = req.query;
     
-    console.log(`📊 Fetching news for symbol: ${symbol}`);
+    console.log(`📊 Fetching news for symbol: ${symbol} (${language})`);
     
-    // ดึงข่าวทั่วไป
-    const generalNews = await finnhubService.getMarketNews('general');
+    // ค้นหาชื่อบริษัทจาก symbol
+    const companyInfo = symbolDetector.getCompanyName(symbol);
+    const searchQuery = `${symbol} OR ${companyInfo}`;
     
-    // Filter ข่าวที่มี symbol นี้
-    const filteredNews = symbolDetector.filterArticlesBySymbol(generalNews, symbol);
+    let allNews = [];
     
-    // ดึงข่าวเฉพาะบริษัท (Company News API)
-    const dateRange = finnhubService.getDateRange(parseInt(days));
-    const companyNews = await finnhubService.getCompanyNews(
-      symbol.toUpperCase(), 
-      dateRange.from, 
-      dateRange.to
-    );
+    if (language === 'both') {
+      allNews = await googleNewsService.getMultiLanguageNews(searchQuery, 25);
+    } else {
+      const region = language === 'th' ? 'TH' : 'US';
+      allNews = await googleNewsService.getNews(searchQuery, language, region);
+    }
     
-    // รวมข่าว และตัดซ้ำ
-    const allNews = [...filteredNews, ...companyNews];
-    const uniqueNews = Array.from(
-      new Map(allNews.map(item => [item.id || item.headline, item])).values()
-    );
+    // Filter ข่าวที่เกี่ยวข้องจริงๆ
+    const filteredNews = symbolDetector.filterArticlesBySymbol(allNews, symbol);
     
     // จำกัดจำนวน
-    const limitedNews = uniqueNews.slice(0, parseInt(limit));
+    const limitedNews = filteredNews.slice(0, parseInt(limit));
     
     // Format
     const formattedNews = limitedNews.map((item, index) => ({
       id: item.id || index,
-      title: item.headline,
+      title: item.headline || item.title,
       source: item.source,
       timeAgo: getTimeAgo(item.datetime),
-      category: getCategoryName(item.category || 'company'),
+      category: item.category,
       url: item.url,
-      image: isValidImageUrl(item.image) ? item.image : null,
+      image: item.image,
       summary: item.summary,
       datetime: item.datetime,
       symbol: symbol.toUpperCase(),
-      symbols: [symbol.toUpperCase()]
+      symbols: [symbol.toUpperCase()],
+      language: item.language
     }));
     
     console.log(`✅ Found ${formattedNews.length} news for ${symbol}`);
@@ -195,7 +209,7 @@ router.get('/summary/symbols', async (req, res) => {
   try {
     console.log('📊 Generating symbol summary from recent news');
     
-    const news = await finnhubService.getMarketNews('general');
+    const news = await googleNewsService.getMultiLanguageNews(null, 100);
     const summary = symbolDetector.generateSymbolSummary(news);
     
     console.log(`✅ Generated summary for ${summary.length} symbols`);
@@ -216,57 +230,47 @@ router.get('/summary/symbols', async (req, res) => {
   }
 });
 
-// GET /api/news/company/:symbol - ดึงข่าวของบริษัท (เดิม)
+// 🆕 GET /api/news/company/:symbol - ดึงข่าวของบริษัท
 router.get('/company/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { days = 30 } = req.query;
+    const { limit = 20, language = 'both' } = req.query;
     
-    const dateRange = finnhubService.getDateRange(parseInt(days));
+    console.log(`📊 Fetching company news for ${symbol}`);
     
-    console.log(`📊 Fetching ${symbol} news from ${dateRange.from} to ${dateRange.to}`);
+    const companyInfo = symbolDetector.getCompanyName(symbol);
+    const searchQuery = `${symbol} OR ${companyInfo}`;
     
-    const news = await finnhubService.getCompanyNews(symbol, dateRange.from, dateRange.to);
+    let news = [];
     
-    let validImageCount = 0;
-    let noImageCount = 0;
+    if (language === 'both') {
+      news = await googleNewsService.getMultiLanguageNews(searchQuery, parseInt(limit));
+    } else {
+      const region = language === 'th' ? 'TH' : 'US';
+      news = await googleNewsService.getNews(searchQuery, language, region);
+    }
     
-    const formattedNews = news.map((item, index) => {
-      let imageUrl = item.image;
-      
-      if (!isValidImageUrl(imageUrl)) {
-        imageUrl = null;
-        noImageCount++;
-      } else {
-        validImageCount++;
-      }
-      
-      return {
-        id: item.id || index,
-        title: item.headline,
-        source: item.source,
-        timeAgo: getTimeAgo(item.datetime),
-        category: 'Company News',
-        url: item.url,
-        image: imageUrl,
-        summary: item.summary,
-        datetime: item.datetime,
-        symbol: symbol.toUpperCase(),
-        symbols: [symbol.toUpperCase()] // 🆕 เพิ่ม symbols array
-      };
-    });
+    const formattedNews = news.slice(0, parseInt(limit)).map((item, index) => ({
+      id: item.id || index,
+      title: item.headline || item.title,
+      source: item.source,
+      timeAgo: getTimeAgo(item.datetime),
+      category: item.category || 'Company News',
+      url: item.url,
+      image: item.image,
+      summary: item.summary,
+      datetime: item.datetime,
+      symbol: symbol.toUpperCase(),
+      symbols: [symbol.toUpperCase()],
+      language: item.language
+    }));
     
-    console.log(`✅ ${symbol}: ${formattedNews.length} news (${validImageCount} with images, ${noImageCount} without)`);
+    console.log(`✅ ${symbol}: ${formattedNews.length} news`);
     
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
       count: formattedNews.length,
-      dateRange,
-      stats: {
-        withImages: validImageCount,
-        withoutImages: noImageCount
-      },
       data: formattedNews
     });
     
@@ -275,73 +279,6 @@ router.get('/company/:symbol', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch company news',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/stocks/quote/:symbol - ดึงราคาหุ้น
-router.get('/quote/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    
-    console.log(`💰 Fetching quote for ${symbol}`);
-    
-    const quote = await finnhubService.getStockQuote(symbol);
-    
-    res.json({
-      success: true,
-      symbol: symbol.toUpperCase(),
-      data: {
-        current: quote.c,
-        open: quote.o,
-        high: quote.h,
-        low: quote.l,
-        previousClose: quote.pc,
-        change: quote.d,
-        changePercent: quote.dp,
-        timestamp: quote.t
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching quote:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch stock quote',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/stocks/search - ค้นหาหุ้น
-router.get('/search', async (req, res) => {
-  try {
-    const { q: query } = req.query;
-    
-    if (!query || query.length < 1) {
-      return res.json({
-        success: true,
-        count: 0,
-        results: []
-      });
-    }
-    
-    console.log(`🔍 Searching stocks: ${query}`);
-    
-    const searchResults = await finnhubService.searchSymbol(query);
-    
-    res.json({
-      success: true,
-      count: searchResults.count || 0,
-      results: searchResults.result || []
-    });
-    
-  } catch (error) {
-    console.error('❌ Error searching stocks:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to search stocks',
       error: error.message
     });
   }
@@ -368,19 +305,6 @@ function getTimeAgo(timestamp) {
   }
   
   return 'just now';
-}
-
-// Helper function: แปลงชื่อ category
-function getCategoryName(category) {
-  const categoryMap = {
-    'company': 'Company News',
-    'general': 'Market News',
-    'forex': 'Forex',
-    'crypto': 'Cryptocurrency',
-    'merger': 'Mergers & Acquisitions'
-  };
-  
-  return categoryMap[category] || 'News';
 }
 
 export default router;

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import newsRoutes from "./routes/news.js";
+import stocksRoutes from "./routes/stocks.js";
 
 dotenv.config();
 
@@ -33,11 +34,15 @@ app.get("/health", (req, res) => {
     message: "Server is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    dataSources: {
+      news: "Google News RSS",
+      stocks: "Yahoo Finance API",
+    },
   });
 });
 
 app.use("/api/news", newsRoutes);
-app.use("/api/stocks", newsRoutes); 
+app.use("/api/stocks", stocksRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -59,16 +64,28 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`
-   Backend Server Started          
-   Port: ${PORT}                    
-   URL: http://localhost:${PORT}    
-   API: http://localhost:${PORT}/api
+
+Port: ${PORT}                             
+URL: http://localhost:${PORT}             
+API: http://localhost:${PORT}/api         
+
   `);
+  console.log(" Available Endpoints:");
   console.log("   GET  /health");
+  console.log("\n News Routes:");
   console.log("   GET  /api/news");
   console.log("   GET  /api/news/company/:symbol");
+  console.log("   GET  /api/news/by-symbol/:symbol");
+  console.log("   GET  /api/news/symbols/trending");
+  console.log("   GET  /api/news/summary/symbols");
+  console.log("\n Stock Routes:");
   console.log("   GET  /api/stocks/quote/:symbol");
-  console.log("   GET  /api/stocks/search?q=...\n");
+  console.log("   GET  /api/stocks/batch?symbols=...");
+  console.log("   GET  /api/stocks/search?q=...");
+  console.log("   GET  /api/stocks/profile/:symbol");
+  console.log("   GET  /api/stocks/history/:symbol");
+  console.log("   GET  /api/stocks/trending");
+  console.log("   GET  /api/stocks/indices\n");
 });
 
 process.on("unhandledRejection", (err) => {
