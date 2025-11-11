@@ -1,15 +1,16 @@
-// Frontend/src/component/News/TrendingSymbols.jsx
 import { useState, useEffect } from 'react';
 import { TrendingUp, Activity } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext'; 
 
 const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
   const [trendingSymbols, setTrendingSymbols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { t } = useLanguage(); 
 
   useEffect(() => {
     fetchTrendingSymbols();
-  }, [limit]);
+  }, [limit, t]); 
 
   const fetchTrendingSymbols = async () => {
     try {
@@ -23,11 +24,11 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
         setTrendingSymbols(data.data);
         console.log('📊 Trending symbols:', data.data);
       } else {
-        setError('Failed to fetch trending symbols');
+        setError(t('trending.error')); 
       }
     } catch (err) {
       console.error('❌ Error fetching trending symbols:', err);
-      setError('Failed to load trending symbols');
+      setError(t('trending.error')); 
     } finally {
       setLoading(false);
     }
@@ -44,7 +45,7 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp className="w-5 h-5 text-green-500 animate-pulse" />
-          <h3 className="font-semibold text-gray-900">Trending Stocks</h3>
+          <h3 className="font-semibold text-gray-900">{t('trending.title')}</h3>
         </div>
         <div className="space-y-2">
           {[1, 2, 3, 4].map(i => (
@@ -69,7 +70,7 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp className="w-5 h-5 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">Trending Stocks</h3>
+          <h3 className="font-semibold text-gray-900">{t('trending.title')}</h3> 
         </div>
         <div className="text-center py-4">
           <p className="text-sm text-red-600">{error}</p>
@@ -77,7 +78,7 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
             onClick={fetchTrendingSymbols}
             className="mt-3 text-xs text-green-600 hover:text-green-700 font-medium"
           >
-            Retry
+            {t('common.retry')} 
           </button>
         </div>
       </div>
@@ -88,7 +89,7 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
         <TrendingUp className="w-5 h-5 text-green-500" />
-        <h3 className="font-semibold text-gray-900">Trending Stocks</h3>
+        <h3 className="font-semibold text-gray-900">{t('trending.title')}</h3>
         <Activity className="w-4 h-4 text-gray-400 ml-auto" />
       </div>
       
@@ -101,20 +102,11 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
               className="w-full group hover:bg-gray-50 rounded-lg p-2 transition-colors flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                {/* Rank Badge */}
-                <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm ${
-                  index === 0 
-                    ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' 
-                    : index === 1
-                    ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white'
-                    : index === 2
-                    ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-white'
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
+                <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm 
+                 `}>
                   {index + 1}
                 </div>
                 
-                {/* Symbol & Name */}
                 <div className="text-left">
                   <div className="font-bold text-gray-900 group-hover:text-green-600 transition-colors">
                     {item.symbol}
@@ -125,13 +117,12 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
                 </div>
               </div>
               
-              {/* Mention Count Badge */}
               <div className="flex items-center gap-1">
                 <span className="text-xs font-medium text-gray-600">
                   {item.count}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {item.count === 1 ? 'mention' : 'mentions'}
+                  {item.count === 1 ? t('trending.mention') : t('trending.mentions')}
                 </span>
               </div>
             </button>
@@ -140,17 +131,16 @@ const TrendingSymbols = ({ onSymbolClick, limit = 8 }) => {
       ) : (
         <div className="text-center py-8">
           <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">No trending stocks found</p>
+          <p className="text-sm text-gray-500">{t('trending.noTrending')}</p> 
         </div>
       )}
       
-      {/* Refresh Button */}
       <button
         onClick={fetchTrendingSymbols}
         className="w-full mt-4 pt-3 border-t border-gray-200 text-xs text-gray-500 hover:text-green-600 font-medium transition-colors flex items-center justify-center gap-1"
       >
         <Activity className="w-3.5 h-3.5" />
-        Refresh
+        {t('common.refresh')} 
       </button>
     </div>
   );

@@ -1,13 +1,16 @@
+// Frontend/src/pages/WatchlistPage.jsx
 import { useState, useEffect } from 'react'; 
 import { Bell } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import ImageWithFallback from "../component/common/ImageWithFallback";
+import { useLanguage } from '../context/LanguageContext'; // 1. Import
 
 const WatchlistPage = () => {
   const { watchlist, toggleAlert } = useApp();
   const [newsArticles, setNewsArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { t } = useLanguage(); // 2. เรียกใช้ t
 
   useEffect(() => {
     if (watchlist.length > 0) {
@@ -16,7 +19,8 @@ const WatchlistPage = () => {
       setNewsArticles([]);
       setLoading(false);
     }
-  }, [watchlist.map(w => w.symbol).join(',')]); 
+    // 3. (อัปเดต) เพิ่ม t เข้าไปใน dependency array
+  }, [watchlist.map(w => w.symbol).join(','), t]); 
 
   const fetchWatchlistNews = async () => {
     try {
@@ -42,12 +46,12 @@ const WatchlistPage = () => {
       
       setNewsArticles(allNews);
       
-      if (allNews.length === 0) {
-        setError('No news available for your watchlist stocks');
+      if (allNews.length === 0 && watchlist.length > 0) {
+        setError(t('watchlist.noNews')); // 4. ใช้ t()
       }
     } catch (error) {
       console.error('Error fetching watchlist news:', error);
-      setError('Failed to load news. Please try again.');
+      setError(t('common.error')); // 4. ใช้ t()
     } finally {
       setLoading(false);
     }
@@ -60,12 +64,13 @@ const WatchlistPage = () => {
           
           <div className="lg:col-span-2">
             <div className="mb-4">
-              <h2 className="text-xl font-bold text-gray-900">ข่าวหุ้นติดตาม</h2>
+              {/* 4. ใช้ t() */}
+              <h2 className="text-xl font-bold text-gray-900">{t('watchlist.title')}</h2>
               <p className="text-sm text-gray-600 mt-1">
-                ข่าวสารล่าสุดจากหุ้นในรายการติดตามของคุณ
+                {t('watchlist.description')}
                 {watchlist.length > 0 && (
                   <span className="ml-2 text-green-600 font-medium">
-                    ({watchlist.length} หุ้น)
+                    ({watchlist.length} {t('watchlist.stocks')})
                   </span>
                 )}
               </p>
@@ -74,7 +79,7 @@ const WatchlistPage = () => {
             {loading ? (
               <div className="bg-white rounded-lg p-12 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading news from {watchlist.length} stocks...</p>
+                <p className="mt-4 text-gray-600">{t('watchlist.loadingNews', { count: watchlist.length })}</p>
               </div>
             ) : error ? (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -83,7 +88,7 @@ const WatchlistPage = () => {
                   onClick={fetchWatchlistNews}
                   className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                   Retry
+                   {t('common.retry')}
                 </button>
               </div>
             ) : (
@@ -142,14 +147,14 @@ const WatchlistPage = () => {
                 ) : watchlist.length === 0 ? (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">ไม่มีหุ้นในรายการติดตาม</h3>
-                    <p className="text-gray-600">เพิ่มหุ้นในรายการติดตามเพื่อรับข่าวสารล่าสุด</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('watchlist.noStocksInList')}</h3>
+                    <p className="text-gray-600">{t('watchlist.addStocksPrompt')}</p>
                   </div>
                 ) : (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                     <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">ไม่พบข่าวล่าสุด</h3>
-                    <p className="text-gray-600">ลองเพิ่มหุ้นอื่นในรายการติดตาม</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('watchlist.noNews')}</h3>
+                    <p className="text-gray-600">{t('watchlist.addStocksPrompt')}</p>
                   </div>
                 )}
               </div>
@@ -160,7 +165,7 @@ const WatchlistPage = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 sticky top-20">
               <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
                 <Bell className="w-5 h-5 text-green-600" /> 
-                <span className="text-sm text-gray-600">การแจ้งเตือน</span>
+                <span className="text-sm text-gray-600">{t('watchlist.alerts')}</span>
               </div>
 
               {watchlist.length > 0 ? (
@@ -201,12 +206,12 @@ const WatchlistPage = () => {
               ) : (
                 <div className="text-center py-8">
                   <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">ไม่มีหุ้นในรายการติดตาม</p>
+                  <p className="text-sm text-gray-500">{t('watchlist.noStocksInList')}</p>
                   <button 
                     className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                     onClick={() => alert('Feature coming soon!')}
                   >
-                    เพิ่มหุ้นติดตาม
+                    {t('watchlist.addStockBtn')}
                   </button>
                 </div>
               )}

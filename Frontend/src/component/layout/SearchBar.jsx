@@ -1,8 +1,10 @@
 import { Search } from 'lucide-react';
 import { useApp } from "../../context/AppContext";
+import { useLanguage } from "../../context/LanguageContext"; // 1. Import
 
 const SearchBar = ({ className = "" }) => {
   const { searchQuery, setSearchQuery, setActiveTab, addRecentSearch } = useApp();
+  const { t } = useLanguage(); // 2. เรียกใช้
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -22,11 +24,11 @@ const SearchBar = ({ className = "" }) => {
     <div className={`relative ${className}`}>
       <input 
         type="text" 
-        placeholder="Search stocks, news..."
+        placeholder={t('search.placeholder')} // 3. แก้ไข
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyPress={handleKeyPress}
-        className="w-full px-4 py-2 pl-4 pr-10 border border-gray-300 rounded-full bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+        className="w-full px-4 py-2 pl-4 pr-10 border border-gray-300 rounded-full bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all" // (แก้สี focus)
         aria-label="Search"
       />
       <button 

@@ -1,4 +1,5 @@
-// pages/HomePage.jsx - ตัวอย่างการใช้ Translation
+// pages/HomePage.jsx
+import { useMemo } from 'react'; // 1. เพิ่ม useMemo
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import BannerSlider from '../component/Banner/BannerSlider';
@@ -8,7 +9,7 @@ import TrendingSymbols from '../component/News/TrendingSymbols';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage(); // ✅ ใช้ Hook นี้
+  const { t } = useLanguage(); 
 
   const handleNewsClick = (article) => {
     console.log('Navigating to news detail:', article.id);
@@ -20,6 +21,14 @@ const HomePage = () => {
     navigate(`/search?symbol=${symbol}`);
   };
 
+  // 2. สร้าง Array โดยใช้ useMemo และ t()
+  const quickLinks = useMemo(() => [
+    { key: 'home.linkMarketOverview', label: t('home.linkMarketOverview') },
+    { key: 'home.linkEconCalendar', label: t('home.linkEconCalendar') },
+    { key: 'home.linkEarningsReports', label: t('home.linkEarningsReports') },
+    { key: 'home.linkIpoCalendar', label: t('home.linkIpoCalendar') }
+  ], [t]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 bg-gray-200">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -29,7 +38,6 @@ const HomePage = () => {
           
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              {/* ✅ แปลหัวข้อ */}
               <h3 className="text-2xl font-bold text-gray-900">
                 {t('home.latestNews')}
               </h3>
@@ -38,7 +46,6 @@ const HomePage = () => {
               </span>
             </div>
             
-            {/* ❌ ข่าวยังเป็นภาษาเดิมจาก API */}
             <NewsList 
               onNewsClick={handleNewsClick}
               onSymbolClick={handleSymbolClick}
@@ -48,14 +55,12 @@ const HomePage = () => {
 
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-6">
-          {/* ✅ แปลหัวข้อ */}
           <TrendingSymbols 
             onSymbolClick={handleSymbolClick}
             limit={8}
           />
           
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-            {/* ✅ แปลหัวข้อ */}
             <h3 className="font-semibold text-gray-900 mb-4">
               {t('home.marketStatus')}
             </h3>
@@ -78,18 +83,14 @@ const HomePage = () => {
               {t('home.quickLinks')}
             </h3>
             <div className="space-y-2">
-              {[
-                'Market Overview',
-                'Economic Calendar',
-                'Earnings Reports',
-                'IPO Calendar'
-              ].map(link => (
+              {/* 3. Map array ที่แปลแล้ว */}
+              {quickLinks.map(link => (
                 <a
-                  key={link}
+                  key={link.key}
                   href="#"
                   className="block text-sm text-gray-600 hover:text-green-600 hover:bg-gray-50 rounded px-2 py-1.5 transition-colors"
                 >
-                  {link}
+                  {link.label}
                 </a>
               ))}
             </div>
