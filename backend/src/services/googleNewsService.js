@@ -5,28 +5,40 @@ class GoogleNewsService {
   constructor() {
     this.baseURL = 'https://news.google.com/rss';
     this.parser = new xml2js.Parser();
+    this.cache = new Map();
+    this.cacheTimeout = 5 * 60 * 1000; 
   }
 
   /**
-   * ดึงข่าวจาก Google News RSS
-   * @param {string} query - คำค้นหา (optional)
-   * @param {string} language - 'th' หรือ 'en'
-   * @param {string} region - 'TH' หรือ 'US'
-   * @returns {Array} - Array of news articles
+   * @param {string} query 
+   * @param {string} language
+   * @param {string} region 
+   * @returns {Array}
    */
   async getNews(query = null, language = 'en', region = 'US') {
     try {
-      let url;
-      
-      if (query) {
-        // Search specific topic
-        url = `${this.baseURL}/search?q=${encodeURIComponent(query)}&hl=${language}&gl=${region}&ceid=${region}:${language}`;
-      } else {
-        // Top headlines
-        url = `${this.baseURL}?hl=${language}&gl=${region}&ceid=${region}:${language}`;
+      const cacheKey = `${query}-${language}-${region}`;
+      if (this.cache.has(cacheKey)) {
+        const cached = this.cache.get(cacheKey);
+        if (Date.now() - cached.timestamp < this.cacheTimeout) {
+          console.log(` Using cached news for ${cacheKey}`);
+          return cached.data;
+        }
       }
 
-      console.log(`📰 Fetching Google News: ${url}`);
+      let url;
+      
+      const stockKeywords = language === 'th' 
+        ? 'หุ้น OR ตลาดหุ้น OR หุ้นอเมริกา OR Wall Street OR NASDAQ OR S&P 500'
+        : 'stocks OR stock market OR Wall Street OR NASDAQ OR S&P 500 OR trading OR shares';
+      
+      if (query) {
+        url = `${this.baseURL}/search?q=${encodeURIComponent(query + ' ' + stockKeywords)}&hl=${language}&gl=${region}&ceid=${region}:${language}`;
+      } else {
+        url = `${this.baseURL}/search?q=${encodeURIComponent(stockKeywords)}&hl=${language}&gl=${region}&ceid=${region}:${language}`;
+      }
+
+      console.log(` Fetching Stock News: ${language.toUpperCase()}`);
       
       const response = await axios.get(url, {
         timeout: 15000,
@@ -38,46 +50,148 @@ class GoogleNewsService {
       const result = await this.parser.parseStringPromise(response.data);
       
       if (!result.rss || !result.rss.channel || !result.rss.channel[0].item) {
-        console.warn('⚠️ No news items found');
+        console.warn(' No news items found');
         return [];
       }
 
       const items = result.rss.channel[0].item;
       
-      const articles = items.map((item, index) => {
+      const articles = await Promise.all(items.map(async (item, index) => {
         const title = item.title?.[0] || 'Untitled';
         const link = item.link?.[0] || '';
         const pubDate = item.pubDate?.[0] || new Date().toISOString();
         const description = item.description?.[0] || '';
         const source = item.source?.[0]?._ || this.extractSource(title);
         
-        // Extract image from description HTML
-        const imageUrl = this.extractImageFromDescription(description);
+        let imageUrl = this.extractImageFromDescription(description);
         
-        // Clean description
-        const cleanDescription = this.cleanDescription(description);
+        let cleanDescription = this.cleanDescription(description);
+        
+        const enrichedData = await this.enrichArticleData(link, title, cleanDescription, imageUrl);
         
         return {
           id: this.generateId(title, pubDate),
           headline: this.cleanTitle(title),
           title: this.cleanTitle(title),
-          summary: cleanDescription,
+          summary: enrichedData.summary || cleanDescription,
           source: source,
           url: link,
-          image: imageUrl,
+          image: enrichedData.image || imageUrl,
           datetime: new Date(pubDate).getTime() / 1000,
           pubDate: pubDate,
-          category: this.categorizeNews(title, cleanDescription),
-          language: language
+          category: this.categorizeNews(title, enrichedData.summary || cleanDescription),
+          language: language,
+          enriched: enrichedData.enriched
         };
-      });
+      }));
 
-      console.log(`✅ Fetched ${articles.length} articles from Google News (${language})`);
-      return articles;
+      const stockNews = articles.filter(article => this.isStockRelated(article));
+
+      console.log(` Fetched ${stockNews.length}/${articles.length} stock-related articles (${language})`);
+      
+      this.cache.set(cacheKey, {
+        data: stockNews,
+        timestamp: Date.now()
+      });
+      
+      return stockNews;
       
     } catch (error) {
-      console.error('❌ Google News Error:', error.message);
+      console.error(' Google News Error:', error.message);
       throw new Error(`Failed to fetch Google News: ${error.message}`);
+    }
+  }
+
+  /**
+   */
+  isStockRelated(article) {
+    const text = `${article.title} ${article.summary}`.toLowerCase();
+    
+    const stockKeywords = [
+      'stock', 'stocks', 'share', 'shares', 'trading', 'trader',
+      'nasdaq', 'nyse', 'dow jones', 's&p 500', 'wall street',
+      'market', 'equity', 'investor', 'investment',
+      'earnings', 'revenue', 'profit', 'quarterly',
+      'bullish', 'bearish', 'rally', 'sell-off',
+      'ipo', 'dividend', 'portfolio', 'broker'
+    ];
+    
+    const stockKeywordsTH = [
+      'หุ้น', 'ตลาดหุ้น', 'หุ้นอเมริกา', 'หุ้นสหรัฐ',
+      'นาสแด็ก', 'ดาวโจนส์', 'วอลล์สตรีท',
+      'ผลประกอบการ', 'รายได้', 'กำไร',
+      'นักลงทุน', 'การลงทุน', 'ซื้อขาย',
+      'พอร์ต', 'พอร์ตโฟลิโอ', 'เปิดบัญชี'
+    ];
+    
+    const allKeywords = [...stockKeywords, ...stockKeywordsTH];
+    
+    return allKeywords.some(keyword => text.includes(keyword));
+  }
+
+  /**
+   */
+  async enrichArticleData(url, title, existingSummary, existingImage) {
+    try {
+      if (existingSummary && existingSummary.length > 100 && existingImage) {
+        return {
+          summary: existingSummary,
+          image: existingImage,
+          enriched: false
+        };
+      }
+
+      const response = await axios.get(url, {
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const $ = cheerio.load(response.data);
+      
+      let summary = existingSummary;
+      if (!summary || summary.length < 50) {
+        summary = 
+          $('meta[property="og:description"]').attr('content') ||
+          $('meta[name="description"]').attr('content') ||
+          $('meta[name="twitter:description"]').attr('content') ||
+          $('.article-content p').first().text() ||
+          $('article p').first().text() ||
+          existingSummary;
+        
+        if (summary) {
+          summary = summary.trim().substring(0, 300);
+        }
+      }
+      
+      let image = existingImage;
+      if (!image) {
+        image = 
+          $('meta[property="og:image"]').attr('content') ||
+          $('meta[name="twitter:image"]').attr('content') ||
+          $('article img').first().attr('src') ||
+          $('.article-image img').first().attr('src');
+        
+        if (image && !image.startsWith('http')) {
+          const baseUrl = new URL(url);
+          image = new URL(image, baseUrl.origin).href;
+        }
+      }
+      
+      return {
+        summary: summary || existingSummary,
+        image: image || existingImage,
+        enriched: true
+      };
+      
+    } catch (error) {
+      console.warn(` Could not enrich article: ${error.message}`);
+      return {
+        summary: existingSummary,
+        image: existingImage,
+        enriched: false
+      };
     }
   }
 
@@ -86,7 +200,7 @@ class GoogleNewsService {
    */
   async getMultiLanguageNews(query = null, limitPerLanguage = 25) {
     try {
-      console.log('🌐 Fetching multi-language news...');
+      console.log(' Fetching multi-language news...');
       
       const [thaiNews, englishNews] = await Promise.allSettled([
         this.getNews(query, 'th', 'TH'),
@@ -98,24 +212,25 @@ class GoogleNewsService {
       if (thaiNews.status === 'fulfilled') {
         allNews = [...allNews, ...thaiNews.value.slice(0, limitPerLanguage)];
       } else {
-        console.warn('⚠️ Failed to fetch Thai news:', thaiNews.reason);
+        console.warn(' Failed to fetch Thai news:', thaiNews.reason);
       }
       
       if (englishNews.status === 'fulfilled') {
         allNews = [...allNews, ...englishNews.value.slice(0, limitPerLanguage)];
       } else {
-        console.warn('⚠️ Failed to fetch English news:', englishNews.reason);
+        console.warn(' Failed to fetch English news:', englishNews.reason);
       }
 
       // Sort by datetime
       allNews.sort((a, b) => b.datetime - a.datetime);
       
-      console.log(`✅ Total news: ${allNews.length} (TH: ${thaiNews.status === 'fulfilled' ? thaiNews.value.length : 0}, EN: ${englishNews.status === 'fulfilled' ? englishNews.value.length : 0})`);
+      const enrichedCount = allNews.filter(n => n.enriched).length;
+      console.log(` Total news: ${allNews.length} (TH: ${thaiNews.status === 'fulfilled' ? thaiNews.value.length : 0}, EN: ${englishNews.status === 'fulfilled' ? englishNews.value.length : 0}, Enriched: ${enrichedCount})`);
       
       return allNews;
       
     } catch (error) {
-      console.error('❌ Multi-language news error:', error);
+      console.error(' Multi-language news error:', error);
       throw error;
     }
   }
@@ -181,10 +296,33 @@ class GoogleNewsService {
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&#039;/g, "'")
-      .replace(/&nbsp;/g, ' ');
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&hellip;/g, '...')
+      .replace(/&mdash;/g, '—')
+      .replace(/&ndash;/g, '–');
     
-    // Trim and limit length
-    cleaned = cleaned.trim().substring(0, 200);
+    // Remove extra whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    // ถ้าสั้นเกินไป ให้ return null
+    if (cleaned.length < 20) {
+      return null;
+    }
+    
+    // Limit length but try to end at sentence
+    if (cleaned.length > 300) {
+      cleaned = cleaned.substring(0, 300);
+      const lastPeriod = cleaned.lastIndexOf('.');
+      const lastExclamation = cleaned.lastIndexOf('!');
+      const lastQuestion = cleaned.lastIndexOf('?');
+      const lastSentence = Math.max(lastPeriod, lastExclamation, lastQuestion);
+      
+      if (lastSentence > 100) {
+        cleaned = cleaned.substring(0, lastSentence + 1);
+      } else {
+        cleaned = cleaned + '...';
+      }
+    }
     
     return cleaned || null;
   }
@@ -210,12 +348,38 @@ class GoogleNewsService {
     const text = `${title} ${description}`.toLowerCase();
     
     const categories = [
-      { name: 'AI Technology', keywords: ['ai', 'artificial intelligence', 'machine learning', 'neural network'] },
-      { name: 'Cryptocurrency', keywords: ['crypto', 'bitcoin', 'ethereum', 'blockchain'] },
-      { name: 'Stock Analysis', keywords: ['stock', 'nasdaq', 'nyse', 'dow jones', 's&p 500'] },
-      { name: 'Market Trends', keywords: ['market', 'trading', 'investor', 'wall street'] },
-      { name: 'Tech Stocks', keywords: ['tech stock', 'technology company', 'tech sector'] },
-      { name: 'Company News', keywords: ['company', 'corporation', 'ceo', 'earnings'] },
+      { 
+        name: 'AI Technology', 
+        keywords: ['ai', 'artificial intelligence', 'machine learning', 'neural network', 'chatgpt', 'openai', 'deepmind', 'ปัญญาประดิษฐ์', 'เอไอ']
+      },
+      { 
+        name: 'Cryptocurrency', 
+        keywords: ['crypto', 'bitcoin', 'ethereum', 'blockchain', 'binance', 'coinbase', 'nft', 'คริปโต', 'บิทคอยน์']
+      },
+      { 
+        name: 'Stock Analysis', 
+        keywords: ['stock', 'nasdaq', 'nyse', 'dow jones', 's&p 500', 'shares', 'equity', 'หุ้น', 'ตลาดหุ้น', 'หุ้นขึ้น', 'หุ้นลง']
+      },
+      { 
+        name: 'Market Trends', 
+        keywords: ['market', 'trading', 'investor', 'wall street', 'rally', 'bull market', 'bear market', 'ตลาด', 'การลงทุน', 'นักลงทุน']
+      },
+      { 
+        name: 'Tech Stocks', 
+        keywords: ['tech stock', 'technology company', 'tech sector', 'faang', 'magnificent seven', 'หุ้นเทค']
+      },
+      { 
+        name: 'Company News', 
+        keywords: ['earnings', 'revenue', 'profit', 'ceo', 'cfo', 'merger', 'acquisition', 'ผลประกอบการ', 'รายได้', 'กำไร']
+      },
+      { 
+        name: 'Economic News', 
+        keywords: ['fed', 'federal reserve', 'interest rate', 'inflation', 'gdp', 'unemployment', 'เฟด', 'อัตราดอกเบี้ย', 'เงินเฟ้อ']
+      },
+      { 
+        name: 'Breaking News', 
+        keywords: ['breaking', 'urgent', 'alert', 'just in', 'ด่วน', 'เร่งด่วน']
+      },
     ];
 
     for (const category of categories) {

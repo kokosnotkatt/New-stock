@@ -29,7 +29,16 @@ const translations = {
       continueWithGoogle: 'Continue with Google',
       continueWithLine: 'Continue with LINE',
       noAccount: "Don't have an account?",
-      signUpLink: 'Sign up'
+      signUpLink: 'Sign up',
+      errors: {
+        emailRequired: 'Email is required',
+        emailInvalid: 'Invalid email format',
+        passwordRequired: 'Password is required',
+        passwordLength: 'Password must be at least 6 characters',
+        invalidCredentials: 'Invalid email or password',
+        network: 'Network error. Please check your connection',
+        unknown: 'An unexpected error occurred'
+      }
     },
     signup: {
       createAccount: 'Create account',
@@ -49,7 +58,20 @@ const translations = {
       createAccountBtn: 'Create Account',
       creatingAccount: 'Creating account...',
       haveAccount: 'Already have an account?',
-      signInLink: 'Sign in'
+      signInLink: 'Sign in',
+      errors: {
+        nameRequired: 'Name is required',
+        nameLength: 'Name must be at least 2 characters',
+        emailRequired: 'Email is required',
+        emailInvalid: 'Invalid email format',
+        passwordRequired: 'Password is required',
+        passwordLength: 'Password must be at least 8 characters',
+        confirmPasswordRequired: 'Please confirm your password',
+        passwordMismatch: 'Passwords do not match'
+      },
+      alert: {
+        success: 'Account created successfully!'
+      }
     },
     home: {
       latestNews: 'Latest News',
@@ -61,7 +83,6 @@ const translations = {
       closed: 'Closed',
       tradingHours: 'Trading Hours',
       quickLinks: 'Quick Links',
-      // (*** เพิ่ม 4 บรรทัดนี้ ***)
       linkMarketOverview: 'Market Overview',
       linkEconCalendar: 'Economic Calendar',
       linkEarningsReports: 'Earnings Reports',
@@ -69,7 +90,7 @@ const translations = {
     },
     search: {
       placeholder: 'Search stocks, news, ',
-      placeholder2: 'or search for topics of interest' , 
+      placeholder2: 'or search for topics of interest',
       filters: 'Filters',
       resultsFor: 'results for',
       noResults: 'No results found',
@@ -189,7 +210,16 @@ const translations = {
       continueWithGoogle: 'เข้าสู่ระบบด้วย Google',
       continueWithLine: 'เข้าสู่ระบบด้วย LINE',
       noAccount: 'ยังไม่มีบัญชี?',
-      signUpLink: 'สมัครสมาชิก'
+      signUpLink: 'สมัครสมาชิก',
+      errors: {
+        emailRequired: 'กรุณากรอกอีเมล',
+        emailInvalid: 'รูปแบบอีเมลไม่ถูกต้อง',
+        passwordRequired: 'กรุณากรอกรหัสผ่าน',
+        passwordLength: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
+        invalidCredentials: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+        network: 'เกิดข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่อ',
+        unknown: 'เกิดข้อผิดพลาดที่ไม่คาดคิด'
+      }
     },
     signup: {
       createAccount: 'สร้างบัญชี',
@@ -209,7 +239,20 @@ const translations = {
       createAccountBtn: 'สร้างบัญชี',
       creatingAccount: 'กำลังสร้างบัญชี...',
       haveAccount: 'มีบัญชีอยู่แล้ว?',
-      signInLink: 'เข้าสู่ระบบ'
+      signInLink: 'เข้าสู่ระบบ',
+      errors: {
+        nameRequired: 'กรุณากรอกชื่อ',
+        nameLength: 'ชื่อต้องมีอย่างน้อย 2 ตัวอักษร',
+        emailRequired: 'กรุณากรอกอีเมล',
+        emailInvalid: 'รูปแบบอีเมลไม่ถูกต้อง',
+        passwordRequired: 'กรุณากรอกรหัสผ่าน',
+        passwordLength: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
+        confirmPasswordRequired: 'กรุณายืนยันรหัสผ่าน',
+        passwordMismatch: 'รหัสผ่านไม่ตรงกัน'
+      },
+      alert: {
+        success: 'สร้างบัญชีสำเร็จ!'
+      }
     },
     home: {
       latestNews: 'ข่าวล่าสุด',
@@ -227,7 +270,7 @@ const translations = {
       linkIpoCalendar: 'ปฏิทิน IPO'
     },
     search: {
-      placeholder: 'ค้นหาหุ้น ข่าว ', 
+      placeholder: 'ค้นหาหุ้น ข่าว ',
       placeholder2: 'หรือค้นหาหัวข้อที่น่าสนใจ',
       filters: 'ตัวกรอง',
       resultsFor: 'ผลลัพธ์สำหรับ',

@@ -1,27 +1,34 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import { corsOptions } from "./config/cors.js";
+import { validateEnv } from "./config/validateEnv.js";
+import { apiLimiter, authLimiter } from "./middleware/rateLimiter.js";
+import { errorLogger } from "./middleware/errorLogger.js";
 import newsRoutes from "./routes/news.js";
 import stocksRoutes from "./routes/stocks.js";
+import authRoutes from "./routes/auth.js";
 
 dotenv.config();
+
+// Validate environment variables FIRST
+try {
+  validateEnv();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ],
-    credentials: true,
-  })
-);
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(cors(corsOptions));
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -34,15 +41,12 @@ app.get("/health", (req, res) => {
     message: "Server is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    dataSources: {
-      news: "Google News RSS",
-      stocks: "Yahoo Finance API",
-    },
   });
 });
 
-app.use("/api/news", newsRoutes);
-app.use("/api/stocks", stocksRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/news", apiLimiter, newsRoutes);
+app.use("/api/stocks", apiLimiter, stocksRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -51,44 +55,26 @@ app.use((req, res) => {
   });
 });
 
-app.use((err, req, res, next) => {
-  console.error(" Server Error:", err);
+app.use(errorLogger);
 
-  res.status(err.status || 500).json({
+app.use((err, req, res, next) => {
+  const status = err.status || 500;
+  const message = err.message || "Internal server error";
+
+  res.status(status).json({
     success: false,
-    message: err.message || "Internal server error",
+    message,
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`
-
-Port: ${PORT}                             
-URL: http://localhost:${PORT}             
-API: http://localhost:${PORT}/api         
-
-  `);
-  console.log(" Available Endpoints:");
-  console.log("   GET  /health");
-  console.log("\n News Routes:");
-  console.log("   GET  /api/news");
-  console.log("   GET  /api/news/company/:symbol");
-  console.log("   GET  /api/news/by-symbol/:symbol");
-  console.log("   GET  /api/news/symbols/trending");
-  console.log("   GET  /api/news/summary/symbols");
-  console.log("\n Stock Routes:");
-  console.log("   GET  /api/stocks/quote/:symbol");
-  console.log("   GET  /api/stocks/batch?symbols=...");
-  console.log("   GET  /api/stocks/search?q=...");
-  console.log("   GET  /api/stocks/profile/:symbol");
-  console.log("   GET  /api/stocks/history/:symbol");
-  console.log("   GET  /api/stocks/trending");
-  console.log("   GET  /api/stocks/indices\n");
+  console.log(`\n✅ Server running on http://localhost:${PORT}`);
+  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔒 JWT configured\n`);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error(" Unhandled Promise Rejection:", err);
+  console.error("❌ Unhandled Promise Rejection:", err);
   process.exit(1);
 });

@@ -1,18 +1,18 @@
 import express from 'express';
 import googleNewsService from '../services/googleNewsService.js';
-import yahooFinanceService from '../services/yahooFinanceService.js';
 import symbolDetector from '../services/symbolDetector.js';
+import { newsValidation, validate } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// 🆕 GET /api/news - ดึงข่าวล่าสุดจาก Google News (ไทย + อังกฤษ)
-router.get('/', async (req, res) => {
+// GET /api/news
+router.get('/', newsValidation, validate, async (req, res) => {
   try {
     const { 
       category = 'general', 
       limit = 50, 
       detectSymbols: shouldDetect = 'true',
-      language = 'both' // 'th', 'en', 'both'
+      language = 'both'
     } = req.query;
     
     console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, lang: ${language}`);
@@ -20,7 +20,6 @@ router.get('/', async (req, res) => {
     let news = [];
     
     if (language === 'both') {
-      // ดึงข่าวทั้งไทยและอังกฤษ
       if (category === 'general') {
         news = await googleNewsService.getMultiLanguageNews(null, 25);
       } else {
@@ -35,7 +34,6 @@ router.get('/', async (req, res) => {
         news.sort((a, b) => b.datetime - a.datetime);
       }
     } else {
-      // ดึงข่าวภาษาเดียว
       const region = language === 'th' ? 'TH' : 'US';
       
       if (category === 'general') {
@@ -50,7 +48,6 @@ router.get('/', async (req, res) => {
     let validImageCount = 0;
     let noImageCount = 0;
     
-    // แปลงข้อมูลให้ตรงกับ format ของ Frontend
     let formattedNews = limitedNews.map((item, index) => {
       if (item.image) {
         validImageCount++;
@@ -73,7 +70,6 @@ router.get('/', async (req, res) => {
       };
     });
     
-    // 🆕 Detect symbols ถ้า query param ระบุ
     if (shouldDetect === 'true') {
       console.log('🔍 Detecting symbols in news...');
       formattedNews = symbolDetector.detectSymbolsForArticles(formattedNews);
@@ -82,7 +78,7 @@ router.get('/', async (req, res) => {
       console.log(`✅ Detected symbols in ${newsWithSymbols}/${formattedNews.length} articles`);
     }
     
-    console.log(`✅ Formatted ${formattedNews.length} news (${validImageCount} with images, ${noImageCount} without images)`);
+    console.log(`✅ Formatted ${formattedNews.length} news`);
     
     res.json({
       success: true,
@@ -111,17 +107,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 🆕 GET /api/news/symbols/trending - ดึง trending symbols
+// ✅ เพิ่ม route นี้
 router.get('/symbols/trending', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
     
     console.log(`📊 Fetching trending symbols - limit: ${limit}`);
     
-    // ดึงข่าวล่าสุด
     const news = await googleNewsService.getMultiLanguageNews(null, 50);
-    
-    // หา trending symbols
     const trending = symbolDetector.getTrendingSymbols(news, parseInt(limit));
     
     console.log(`✅ Found ${trending.length} trending symbols`);
@@ -142,7 +135,7 @@ router.get('/symbols/trending', async (req, res) => {
   }
 });
 
-// 🆕 GET /api/news/by-symbol/:symbol - ดึงข่าวที่เกี่ยวข้องกับ symbol
+// ✅ เพิ่ม route นี้
 router.get('/by-symbol/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
@@ -150,7 +143,6 @@ router.get('/by-symbol/:symbol', async (req, res) => {
     
     console.log(`📊 Fetching news for symbol: ${symbol} (${language})`);
     
-    // ค้นหาชื่อบริษัทจาก symbol
     const companyInfo = symbolDetector.getCompanyName(symbol);
     const searchQuery = `${symbol} OR ${companyInfo}`;
     
@@ -163,13 +155,9 @@ router.get('/by-symbol/:symbol', async (req, res) => {
       allNews = await googleNewsService.getNews(searchQuery, language, region);
     }
     
-    // Filter ข่าวที่เกี่ยวข้องจริงๆ
     const filteredNews = symbolDetector.filterArticlesBySymbol(allNews, symbol);
-    
-    // จำกัดจำนวน
     const limitedNews = filteredNews.slice(0, parseInt(limit));
     
-    // Format
     const formattedNews = limitedNews.map((item, index) => ({
       id: item.id || index,
       title: item.headline || item.title,
@@ -204,7 +192,7 @@ router.get('/by-symbol/:symbol', async (req, res) => {
   }
 });
 
-// 🆕 GET /api/news/summary/symbols - สรุป symbols ในข่าวล่าสุด
+// ✅ เพิ่ม route นี้
 router.get('/summary/symbols', async (req, res) => {
   try {
     console.log('📊 Generating symbol summary from recent news');
@@ -230,7 +218,6 @@ router.get('/summary/symbols', async (req, res) => {
   }
 });
 
-// 🆕 GET /api/news/company/:symbol - ดึงข่าวของบริษัท
 router.get('/company/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
@@ -284,7 +271,6 @@ router.get('/company/:symbol', async (req, res) => {
   }
 });
 
-// Helper function: แปลง timestamp เป็น "time ago"
 function getTimeAgo(timestamp) {
   const seconds = Math.floor((Date.now() / 1000) - timestamp);
   

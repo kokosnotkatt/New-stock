@@ -1,6 +1,5 @@
-// Frontend/src/pages/NewsDetailPage.jsx
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   ArrowLeft, ExternalLink, Clock, TrendingUp,
   Share2, Bookmark, Eye, Building2, Home
@@ -8,24 +7,31 @@ import {
 import ImageWithFallback from '../component/common/ImageWithFallback';
 import SymbolBadges from '../component/News/SymbolBadges';
 import NewsCard from '../component/News/NewsCard';
-import { useLanguage } from '../context/LanguageContext'; // 1. Import
+import { useLanguage } from '../context/LanguageContext';
 
 const NewsDetailPage = () => {
   const { newsId } = useParams();
   const navigate = useNavigate();
-  const { t } = useLanguage(); // 2. เรียกใช้ t
+  const location = useLocation();
+  const { t } = useLanguage();
   
-  const [article, setArticle] = useState(null);
+  // ✅ ดึง article จาก state ถ้ามี
+  const [article, setArticle] = useState(location.state?.article || null);
   const [relatedNews, setRelatedNews] = useState([]);
   const [stockPrices, setStockPrices] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!location.state?.article); // ถ้ามี article แล้วไม่ต้อง loading
   const [error, setError] = useState(null);
   const [bookmarked, setBookmarked] = useState(false);
 
   useEffect(() => {
-    fetchArticleData();
+    // ✅ ถ้ายังไม่มี article ใน state ค่อย fetch
+    if (!article) {
+      fetchArticleData();
+    } else {
+      console.log('✅ Using article from state:', article.title);
+    }
     window.scrollTo(0, 0);
-  }, [newsId, t]); // 3. เพิ่ม t เป็น dependency
+  }, [newsId]);
 
   useEffect(() => {
     if (article && article.symbols && article.symbols.length > 0) {
@@ -39,9 +45,9 @@ const NewsDetailPage = () => {
       setLoading(true);
       setError(null);
       
-      console.log('📰 Fetching article:', newsId);
+      console.log('📰 Fetching article from API:', newsId);
       
-      const response = await fetch('http://localhost:5001/api/news?limit=100&detectSymbols=true');
+      const response = await fetch('http://localhost:5001/api/news?limit=200&detectSymbols=true&language=both');
       const data = await response.json();
       
       if (data.success) {
@@ -51,15 +57,16 @@ const NewsDetailPage = () => {
           setArticle(foundArticle);
           console.log('✅ Article found:', foundArticle.title);
         } else {
-          setError(t('detail.notFoundTitle')); // 4. ใช้ t()
+          setError(t('detail.notFoundTitle'));
           console.error('❌ Article not found with ID:', newsId);
+          console.log('Available IDs:', data.data.slice(0, 10).map(a => ({ id: a.id, title: a.title })));
         }
       } else {
-        setError(t('common.error')); // 4. ใช้ t()
+        setError(t('common.error'));
       }
     } catch (err) {
       console.error('❌ Error fetching article:', err);
-      setError(t('common.error')); // 4. ใช้ t()
+      setError(t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -106,12 +113,24 @@ const NewsDetailPage = () => {
   };
 
   const handleShare = async () => {
-    // ... (logic)
+    if (navigator.share && article) {
+      try {
+        await navigator.share({
+          title: article.title,
+          text: article.summary || article.title,
+          url: window.location.href
+        });
+      } catch (err) {
+        console.log('Share cancelled or failed:', err);
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copied to clipboard!');
+    }
   };
 
   const handleBookmark = () => {
     setBookmarked(!bookmarked);
-    // TODO: Save to backend/localStorage
     console.log('Bookmark toggled:', !bookmarked);
   };
 
@@ -122,22 +141,21 @@ const NewsDetailPage = () => {
   };
 
   const handleRelatedNewsClick = (relatedArticle) => {
-    navigate(`/news/${relatedArticle.id}`);
+    // ✅ ส่ง article ไปด้วย
+    navigate(`/news/${relatedArticle.id}`, { state: { article: relatedArticle } });
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-200 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">{t('detail.loading')}</p> {/* 4. ใช้ t() */}
+          <p className="text-gray-600 text-lg">{t('detail.loading')}</p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error || !article) {
     return (
       <div className="min-h-screen bg-gray-200 flex items-center justify-center px-4">
@@ -147,7 +165,6 @@ const NewsDetailPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          {/* 4. ใช้ t() */}
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('detail.notFoundTitle')}</h2>
           <p className="text-gray-600 mb-6">{error || t('detail.notFoundDesc')}</p>
           <Link
@@ -165,7 +182,6 @@ const NewsDetailPage = () => {
   return (
     <div className="min-h-screen bg-gray-200">
       <div className="max-w-5xl mx-auto">
-        {/* Header - Sticky */}
         <div className="sticky top-0 bg-white border-b border-gray-200 z-20 shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
@@ -174,14 +190,14 @@ const NewsDetailPage = () => {
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
-                <span className="font-medium">{t('detail.back')}</span> {/* 4. ใช้ t() */}
+                <span className="font-medium">{t('detail.back')}</span>
               </button>
 
               <div className="flex items-center gap-3">
                 <Link
                   to="/"
                   className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                  title={t('nav.home')} // 4. ใช้ t()
+                  title={t('nav.home')}
                 >
                   <Home className="w-5 h-5" />
                 </Link>
@@ -189,7 +205,7 @@ const NewsDetailPage = () => {
                 <button
                   onClick={handleShare}
                   className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                  title={t('detail.share')} // 4. ใช้ t()
+                  title={t('detail.share')}
                 >
                   <Share2 className="w-5 h-5" />
                 </button>
@@ -201,7 +217,7 @@ const NewsDetailPage = () => {
                       ? 'text-green-600 bg-green-50' 
                       : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
                   }`}
-                  title={t('detail.bookmark')} // 4. ใช้ t()
+                  title={t('detail.bookmark')}
                 >
                   <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-current' : ''}`} />
                 </button>
@@ -210,9 +226,7 @@ const NewsDetailPage = () => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="bg-white">
-          {/* Featured Image */}
           {article.image && (
             <div className="relative h-96 bg-gray-100">
               <ImageWithFallback
@@ -225,9 +239,7 @@ const NewsDetailPage = () => {
             </div>
           )}
 
-          {/* Article Content */}
           <div className="px-4 sm:px-6 lg:px-8 py-8">
-            {/* Metadata */}
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium ${
                 article.category === 'Company News' 
@@ -250,18 +262,16 @@ const NewsDetailPage = () => {
               )}
             </div>
 
-            {/* Title */}
             <h1 className="text-4xl font-bold text-gray-900 mb-6 leading-tight">
               {article.title}
             </h1>
 
-            {/* Stock Symbols & Prices Section */}
             {article.symbols && article.symbols.length > 0 && (
               <div className="mb-8 p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   <h3 className="text-lg font-bold text-gray-900">
-                    {t('detail.relatedStocks')} ({article.symbols.length}) {/* 4. ใช้ t() */}
+                    {t('detail.relatedStocks')} ({article.symbols.length})
                   </h3>
                 </div>
                 
@@ -312,7 +322,6 @@ const NewsDetailPage = () => {
               </div>
             )}
 
-            {/* Summary */}
             {article.summary && (
               <div className="mb-8">
                 <p className="text-xl text-gray-700 leading-relaxed">
@@ -321,13 +330,12 @@ const NewsDetailPage = () => {
               </div>
             )}
 
-            {/* Read Original Button */}
             <div className="mb-8 pb-8 border-b border-gray-200">
               <button
                 onClick={handleReadOriginal}
                 className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-green-500/30"
               >
-                <span>{t('detail.readFullArticle')}</span> {/* 4. ใช้ t() */}
+                <span>{t('detail.readFullArticle')}</span>
                 <ExternalLink className="w-5 h-5" />
               </button>
               <p className="text-center text-sm text-gray-500 mt-3">
@@ -335,12 +343,11 @@ const NewsDetailPage = () => {
               </p>
             </div>
 
-            {/* Related News Section */}
             {relatedNews.length > 0 && (
               <div className="mt-8">
                 <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                   <Eye className="w-6 h-6 text-green-600" />
-                  {t('detail.relatedNews')} ({relatedNews.length}) {/* 4. ใช้ t() */}
+                  {t('detail.relatedNews')} ({relatedNews.length})
                 </h3>
                 
                 <div className="grid grid-cols-1 gap-4">
@@ -362,7 +369,6 @@ const NewsDetailPage = () => {
             )}
           </div>
 
-          {/* Footer */}
           <div className="px-4 sm:px-6 lg:px-8 py-6 bg-gray-50 border-t border-gray-200">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
               <div className="flex items-center gap-4">

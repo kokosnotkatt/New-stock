@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ImageWithFallback from "../common/ImageWithFallback";
 
 const BannerSlider = () => {
@@ -7,10 +7,14 @@ const BannerSlider = () => {
   const [slides, setSlides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const hasFetched = useRef(false); // ✅ ป้องกัน double fetch
 
-  // ✅ ดึงข่าวจาก API เมื่อ component mount
   useEffect(() => {
-    fetchCNBCNews();
+    // ✅ Fetch เพียงครั้งเดียว
+    if (!hasFetched.current) {
+      hasFetched.current = true;
+      fetchCNBCNews();
+    }
   }, []);
 
   const fetchCNBCNews = async () => {
@@ -18,18 +22,21 @@ const BannerSlider = () => {
       setLoading(true);
       setError(null);
       
-      // ดึงข่าวล่าสุด จำนวนมากเพื่อกรอง CNBC
       const response = await fetch('http://localhost:5001/api/news?limit=50&category=general');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       if (data.success) {
-        // ✅ กรองเฉพาะข่าวจาก CNBC ที่มีรูป
         const cnbcNews = data.data
           .filter(article => 
             article.source?.toLowerCase().includes('cnbc') && 
             article.image
           )
-          .slice(0, 5) // เอาแค่ 5 ข่าว
+          .slice(0, 5)
           .map((article, index) => ({
             id: article.id || index,
             title: article.title,
@@ -46,7 +53,6 @@ const BannerSlider = () => {
         if (cnbcNews.length > 0) {
           setSlides(cnbcNews);
         } else {
-          // ถ้าไม่มีข่าว CNBC ให้ใช้ fallback
           console.warn('⚠️ No CNBC news found, using fallback slides');
           setSlides(getFallbackSlides());
         }
@@ -56,17 +62,15 @@ const BannerSlider = () => {
     } catch (err) {
       console.error('❌ Error fetching CNBC news:', err);
       setError(err.message);
-      // ใช้ fallback slides เมื่อ error
       setSlides(getFallbackSlides());
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper: สุ่ม gradient สี
   const getGradientByIndex = (index) => {
     const gradients = [
-      'from-blue-600 to-blue-800',     // CNBC Blue theme
+      'from-blue-600 to-blue-800',
       'from-cyan-600 to-blue-700',
       'from-indigo-600 to-blue-800',
       'from-blue-500 to-purple-700',
@@ -75,7 +79,6 @@ const BannerSlider = () => {
     return gradients[index % gradients.length];
   };
 
-  // Fallback slides เมื่อไม่มีข่าว CNBC
   const getFallbackSlides = () => [
     {
       id: 1,
@@ -106,7 +109,6 @@ const BannerSlider = () => {
     }
   ];
 
-  // Auto-play slider
   useEffect(() => {
     if (isAutoPlay && slides.length > 1) {
       const interval = setInterval(() => {
@@ -141,7 +143,6 @@ const BannerSlider = () => {
     }
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="relative w-full h-80 bg-gray-200 rounded-lg overflow-hidden shadow-lg flex items-center justify-center">
@@ -153,7 +154,6 @@ const BannerSlider = () => {
     );
   }
 
-  // Empty state
   if (slides.length === 0) {
     return (
       <div className="relative w-full h-80 bg-gray-200 rounded-lg overflow-hidden shadow-lg flex items-center justify-center">
@@ -166,7 +166,6 @@ const BannerSlider = () => {
 
   return (
     <div className="relative w-full h-80 bg-gray-100 rounded-lg overflow-hidden shadow-lg">
-      {/* ✅ Navigation Buttons - แสดงเสมอ (ไม่ซ่อน) */}
       <button
         onClick={prevSlide}
         className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-sm transition-all z-20"
@@ -187,7 +186,6 @@ const BannerSlider = () => {
         </svg>
       </button>
 
-      {/* Slides Container */}
       <div
         className="flex h-full transition-transform duration-700 ease-in-out"
         style={{ transform: `translateX(-${currentSlide * 100}%)` }}
@@ -204,14 +202,12 @@ const BannerSlider = () => {
                 alt={slide.alt}
                 className="w-full h-full object-cover"
                 fallbackGradient={slide.gradient}
-                priority={index === 0} // Load first image with priority
+                priority={index === 0}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
             </div>
 
-            {/* Content Overlay */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent text-white p-6">
-              {/* CNBC Badge */}
               <div className="mb-2">
                 <span className="inline-block bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded">
                   {slide.source}
@@ -225,7 +221,6 @@ const BannerSlider = () => {
                 {slide.description}
               </p>
               
-              {/* Read more indicator */}
               {slide.url && (
                 <div className="mt-3 flex items-center text-sm text-white/90 hover:text-white transition-colors">
                   <span>Read more on CNBC</span>
@@ -236,7 +231,6 @@ const BannerSlider = () => {
               )}
             </div>
 
-            {/* Progress Bar */}
             {currentSlide === index && isAutoPlay && slides.length > 1 && (
               <div className="absolute bottom-0 left-0 h-1 bg-blue-500 animate-progress"></div>
             )}
@@ -244,7 +238,6 @@ const BannerSlider = () => {
         ))}
       </div>
 
-      {/* Dot Indicators - แสดงเมื่อมีมากกว่า 1 slide */}
       {slides.length > 1 && (
         <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex space-x-2 z-20">
           {slides.map((_, index) => (
@@ -262,12 +255,10 @@ const BannerSlider = () => {
         </div>
       )}
 
-      {/* Slide Counter - แสดงจำนวน slides */}
       <div className="absolute top-4 right-4 bg-black bg-opacity-60 text-white text-xs px-3 py-1 rounded-full z-20">
         {currentSlide + 1} / {slides.length}
       </div>
 
-      {/* Error indicator (subtle) */}
       {error && (
         <div className="absolute top-4 left-4 z-30">
           <div className="bg-yellow-500 text-white text-xs px-2 py-1 rounded">
@@ -279,7 +270,6 @@ const BannerSlider = () => {
   );
 };
 
-// Add CSS animations
 const style = document.createElement('style');
 style.textContent = `
   @keyframes progress {
