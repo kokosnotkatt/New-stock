@@ -1,46 +1,53 @@
 import express from 'express';
-import googleNewsService from '../services/googleNewsService.js';
+import finnhubService from '../services/finnhubService.js'; 
 import symbolDetector from '../services/symbolDetector.js';
 import { newsValidation, validate } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// GET /api/news
+// ✅ ฟังก์ชัน delay เพื่อหลีก rate limit
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Popular stocks for news
+const POPULAR_STOCKS = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL'];
+
 router.get('/', newsValidation, validate, async (req, res) => {
   try {
     const { 
       category = 'general', 
       limit = 50, 
       detectSymbols: shouldDetect = 'true',
-      language = 'both'
+      language = 'both' 
     } = req.query;
     
-    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, lang: ${language}`);
+    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}`);
     
     let news = [];
     
-    if (language === 'both') {
-      if (category === 'general') {
-        news = await googleNewsService.getMultiLanguageNews(null, 25);
-      } else {
-        const [thNews, enNews] = await Promise.allSettled([
-          googleNewsService.getNewsByCategory(category, 'th', 'TH'),
-          googleNewsService.getNewsByCategory(category, 'en', 'US')
-        ]);
-        
-        if (thNews.status === 'fulfilled') news = [...news, ...thNews.value];
-        if (enNews.status === 'fulfilled') news = [...news, ...enNews.value];
-        
-        news.sort((a, b) => b.datetime - a.datetime);
-      }
-    } else {
-      const region = language === 'th' ? 'TH' : 'US';
+    if (category === 'general' || category === 'stocks') {
+      console.log(`📊 Fetching news from ${POPULAR_STOCKS.length} popular stocks...`);
       
-      if (category === 'general') {
-        news = await googleNewsService.getNews(null, language, region);
-      } else {
-        news = await googleNewsService.getNewsByCategory(category, language, region);
+      // ✅ ดึงทุกหุ้นพร้อม delay เพื่อหลีก rate limit
+      for (const symbol of POPULAR_STOCKS) {
+        try {
+          const symbolNews = await finnhubService.getCompanyNews(symbol);
+          news.push(...symbolNews);
+          console.log(`  ✅ ${symbol}: ${symbolNews.length} articles`);
+          
+          // ✅ หน่วงเวลา 200ms ระหว่าง request
+          await delay(200);
+        } catch (err) {
+          console.warn(`  ⚠️  ${symbol}: ${err.message}`);
+        }
       }
+      
+      // Sort by date
+      news.sort((a, b) => b.datetime - a.datetime);
+      
+      console.log(`✅ Total news from ${POPULAR_STOCKS.length} stocks: ${news.length} articles`);
+      
+    } else {
+      news = await finnhubService.getNewsByCategory(category, 'en', 'US');
     }
     
     const limitedNews = news.slice(0, parseInt(limit));
@@ -66,7 +73,9 @@ router.get('/', newsValidation, validate, async (req, res) => {
         image: item.image,
         summary: item.summary,
         datetime: item.datetime,
-        language: item.language
+        language: item.language || 'en',
+        enriched: item.enriched,
+        symbols: item.symbols || []
       };
     });
     
@@ -75,7 +84,7 @@ router.get('/', newsValidation, validate, async (req, res) => {
       formattedNews = symbolDetector.detectSymbolsForArticles(formattedNews);
       
       const newsWithSymbols = formattedNews.filter(n => n.symbols && n.symbols.length > 0).length;
-      console.log(`✅ Detected symbols in ${newsWithSymbols}/${formattedNews.length} articles`);
+      console.log(`📊 Detected symbols in ${newsWithSymbols}/${formattedNews.length} articles`);
     }
     
     console.log(`✅ Formatted ${formattedNews.length} news`);
@@ -86,12 +95,13 @@ router.get('/', newsValidation, validate, async (req, res) => {
       stats: {
         withImages: validImageCount,
         withoutImages: noImageCount,
+        enriched: formattedNews.filter(n => n.enriched).length,
         withSymbols: shouldDetect === 'true' 
           ? formattedNews.filter(n => n.symbols && n.symbols.length > 0).length 
           : undefined,
         languages: {
-          th: formattedNews.filter(n => n.language === 'th').length,
-          en: formattedNews.filter(n => n.language === 'en').length
+          th: 0, 
+          en: formattedNews.length
         }
       },
       data: formattedNews
@@ -107,15 +117,25 @@ router.get('/', newsValidation, validate, async (req, res) => {
   }
 });
 
-// ✅ เพิ่ม route นี้
 router.get('/symbols/trending', async (req, res) => {
   try {
-    const { limit = 10 } = req.query;
+    const { limit = 8 } = req.query;
     
     console.log(`📊 Fetching trending symbols - limit: ${limit}`);
     
-    const news = await googleNewsService.getMultiLanguageNews(null, 50);
-    const trending = symbolDetector.getTrendingSymbols(news, parseInt(limit));
+    // ✅ Sequential requests with delay
+    let allNews = [];
+    for (const symbol of POPULAR_STOCKS) {
+      try {
+        const news = await finnhubService.getCompanyNews(symbol);
+        allNews.push(...news);
+        await delay(200);
+      } catch (err) {
+        console.warn(`⚠️  ${symbol}:`, err.message);
+      }
+    }
+    
+    const trending = symbolDetector.getTrendingSymbols(allNews, parseInt(limit));
     
     console.log(`✅ Found ${trending.length} trending symbols`);
     
@@ -135,28 +155,16 @@ router.get('/symbols/trending', async (req, res) => {
   }
 });
 
-// ✅ เพิ่ม route นี้
 router.get('/by-symbol/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { limit = 20, language = 'both' } = req.query;
+    const { limit = 10 } = req.query;
     
-    console.log(`📊 Fetching news for symbol: ${symbol} (${language})`);
+    console.log(`📰 Fetching news for symbol: ${symbol}`);
     
-    const companyInfo = symbolDetector.getCompanyName(symbol);
-    const searchQuery = `${symbol} OR ${companyInfo}`;
+    let allNews = await finnhubService.getCompanyNews(symbol.toUpperCase());
     
-    let allNews = [];
-    
-    if (language === 'both') {
-      allNews = await googleNewsService.getMultiLanguageNews(searchQuery, 25);
-    } else {
-      const region = language === 'th' ? 'TH' : 'US';
-      allNews = await googleNewsService.getNews(searchQuery, language, region);
-    }
-    
-    const filteredNews = symbolDetector.filterArticlesBySymbol(allNews, symbol);
-    const limitedNews = filteredNews.slice(0, parseInt(limit));
+    const limitedNews = allNews.slice(0, parseInt(limit));
     
     const formattedNews = limitedNews.map((item, index) => ({
       id: item.id || index,
@@ -170,7 +178,8 @@ router.get('/by-symbol/:symbol', async (req, res) => {
       datetime: item.datetime,
       symbol: symbol.toUpperCase(),
       symbols: [symbol.toUpperCase()],
-      language: item.language
+      language: item.language || 'en',
+      enriched: item.enriched
     }));
     
     console.log(`✅ Found ${formattedNews.length} news for ${symbol}`);
@@ -192,13 +201,23 @@ router.get('/by-symbol/:symbol', async (req, res) => {
   }
 });
 
-// ✅ เพิ่ม route นี้
 router.get('/summary/symbols', async (req, res) => {
   try {
     console.log('📊 Generating symbol summary from recent news');
     
-    const news = await googleNewsService.getMultiLanguageNews(null, 100);
-    const summary = symbolDetector.generateSymbolSummary(news);
+    // Sequential requests with delay
+    let allNews = [];
+    for (const symbol of POPULAR_STOCKS) {
+      try {
+        const news = await finnhubService.getCompanyNews(symbol);
+        allNews.push(...news);
+        await delay(200);
+      } catch (err) {
+        console.warn(`⚠️  ${symbol}:`, err.message);
+      }
+    }
+    
+    const summary = symbolDetector.generateSymbolSummary(allNews);
     
     console.log(`✅ Generated summary for ${summary.length} symbols`);
     
@@ -221,21 +240,11 @@ router.get('/summary/symbols', async (req, res) => {
 router.get('/company/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { limit = 20, language = 'both' } = req.query;
+    const { limit = 10 } = req.query;
     
-    console.log(`📊 Fetching company news for ${symbol}`);
+    console.log(`📰 Fetching company news for ${symbol}`);
     
-    const companyInfo = symbolDetector.getCompanyName(symbol);
-    const searchQuery = `${symbol} OR ${companyInfo}`;
-    
-    let news = [];
-    
-    if (language === 'both') {
-      news = await googleNewsService.getMultiLanguageNews(searchQuery, parseInt(limit));
-    } else {
-      const region = language === 'th' ? 'TH' : 'US';
-      news = await googleNewsService.getNews(searchQuery, language, region);
-    }
+    let news = await finnhubService.getCompanyNews(symbol.toUpperCase());
     
     const formattedNews = news.slice(0, parseInt(limit)).map((item, index) => ({
       id: item.id || index,
@@ -249,7 +258,8 @@ router.get('/company/:symbol', async (req, res) => {
       datetime: item.datetime,
       symbol: symbol.toUpperCase(),
       symbols: [symbol.toUpperCase()],
-      language: item.language
+      language: item.language || 'en',
+      enriched: item.enriched
     }));
     
     console.log(`✅ ${symbol}: ${formattedNews.length} news`);

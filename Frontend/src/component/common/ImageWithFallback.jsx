@@ -1,12 +1,12 @@
-// component/common/ImageWithFallback.jsx - Optimized with Intersection Observer
+// component/common/ImageWithFallback.jsx - (Cleaned Up Version)
 import { useState, useEffect, useRef } from 'react';
+import { useLanguage } from '../../context/LanguageContext'; // 1. (เพิ่ม) Import
 
 const ImageWithFallback = ({ 
   src, 
   alt, 
   className = "", 
-  fallbackType = "gradient",
-  fallbackGradient = "from-blue-500 to-purple-600",
+  // fallbackGradient, // (ลบ Prop นี้)
   lazy = true,
   threshold = 0.1,
   rootMargin = "50px",
@@ -20,27 +20,20 @@ const ImageWithFallback = ({
   const [isInView, setIsInView] = useState(!lazy || priority);
   const imgRef = useRef(null);
   const observerRef = useRef(null);
+  const { t } = useLanguage(); // 2. (เพิ่ม) เรียกใช้ t()
 
   useEffect(() => {
-    // Skip intersection observer if not lazy loading or priority image
     if (!lazy || priority) {
       setImgSrc(src);
       return;
     }
 
-    // Setup Intersection Observer for lazy loading
-    const options = {
-      threshold,
-      rootMargin
-    };
-
+    const options = { threshold, rootMargin };
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           setIsInView(true);
           setImgSrc(src);
-          
-          // Disconnect observer after image is in view
           if (observerRef.current && entry.target) {
             observerRef.current.unobserve(entry.target);
           }
@@ -48,13 +41,11 @@ const ImageWithFallback = ({
       });
     }, options);
 
-    // Start observing
     const currentImgRef = imgRef.current;
     if (currentImgRef) {
       observerRef.current.observe(currentImgRef);
     }
 
-    // Cleanup
     return () => {
       if (observerRef.current && currentImgRef) {
         observerRef.current.unobserve(currentImgRef);
@@ -63,16 +54,10 @@ const ImageWithFallback = ({
   }, [src, lazy, priority, threshold, rootMargin]);
 
   const handleError = (e) => {
-    console.error('🖼️ Image load error:', {
-      src,
-      alt,
-      error: e.type
-    });
-    
+    console.error('🖼️ Image load error:', { src, alt, error: e.type });
     setHasError(true);
     setIsLoading(false);
     
-    // Try alternative image formats if available
     if (src && src.includes('.webp')) {
       const fallbackSrc = src.replace('.webp', '.jpg');
       console.log('🔄 Trying fallback format:', fallbackSrc);
@@ -87,18 +72,20 @@ const ImageWithFallback = ({
     setIsLoading(false);
   };
 
-  // Render fallback if error
+  // 3. (แก้ไข) Render fallback if error
   if (hasError) {
     console.warn('⚠️ Showing fallback gradient for:', alt);
     return (
       <div 
         ref={imgRef}
-        className={`bg-gradient-to-br ${fallbackGradient} flex items-center justify-center ${className}`}
+        // เปลี่ยนจาก Gradient เป็น bg-gray-100
+        className={`bg-gray-100 flex items-center justify-center ${className}`}
         role="img"
-        aria-label={alt || "Image placeholder"}
+        aria-label={alt || t('imageFallback.placeholder')} // (เพิ่ม t())
       >
         <svg 
-          className="w-12 h-12 text-white opacity-50" 
+          // เปลี่ยนสีไอคอนเป็น text-gray-400
+          className="w-10 h-10 text-gray-400 opacity-75" 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -114,25 +101,25 @@ const ImageWithFallback = ({
     );
   }
 
-  // Render placeholder before image loads
+  // 4. (เหมือนเดิม) Render placeholder before image loads
   if (!isInView || !imgSrc) {
     return (
       <div 
         ref={imgRef}
         className={`animate-pulse bg-gray-200 ${className}`}
         role="img"
-        aria-label={`Loading ${alt || "image"}`}
+        aria-label={t('imageFallback.loading', { alt: alt || '' })} // (เพิ่ม t())
       />
     );
   }
 
+  // 5. (เหมือนเดิม) Render รูปภาพ
   return (
     <>
       {isLoading && (
         <div className={`animate-pulse bg-gray-200 ${className} absolute`} />
       )}
       <picture>
-        {/* WebP source for modern browsers */}
         {src && !src.includes('.svg') && (
           <source 
             type="image/webp" 
@@ -141,7 +128,6 @@ const ImageWithFallback = ({
           />
         )}
         
-        {/* Original format fallback */}
         <img 
           ref={imgRef}
           src={imgSrc}

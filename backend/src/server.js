@@ -1,8 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+
 import { corsOptions } from "./config/cors.js";
 import { validateEnv } from "./config/validateEnv.js";
 import { apiLimiter, authLimiter } from "./middleware/rateLimiter.js";
@@ -11,9 +14,11 @@ import newsRoutes from "./routes/news.js";
 import stocksRoutes from "./routes/stocks.js";
 import authRoutes from "./routes/auth.js";
 
-dotenv.config();
-
-// Validate environment variables FIRST
+console.log(" API Key:", process.env.FINNHUB_API_KEY);
+console.log(
+  " All env vars:",
+  Object.keys(process.env).filter((k) => k.includes("FINNHUB"))
+);
 try {
   validateEnv();
 } catch (error) {
@@ -27,8 +32,8 @@ const PORT = process.env.PORT || 5001;
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -69,9 +74,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n✅ Server running on http://localhost:${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔒 JWT configured\n`);
+  console.log(`\n Server running on http://localhost:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`JWT configured\n`);
 });
 
 process.on("unhandledRejection", (err) => {
