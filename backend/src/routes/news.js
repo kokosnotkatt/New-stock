@@ -1,109 +1,78 @@
+// backend/src/routes/news.js
 import express from 'express';
 import finnhubService from '../services/finnhubService.js'; 
 import symbolDetector from '../services/symbolDetector.js';
+import translationService from '../services/translationService.js'; // Google Translate API
+import geminiService from '../services/geminiService.js'; // Gemini AI Analysis
 import { newsValidation, validate } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// ✅ ฟังก์ชัน delay เพื่อหลีก rate limit
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Popular stocks for news
 const POPULAR_STOCKS = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL'];
 
+// =============================================
+// 📰 GET /api/news - ดึงข่าวทั้งหมด
+// =============================================
 router.get('/', newsValidation, validate, async (req, res) => {
   try {
     const { 
       category = 'general', 
       limit = 50, 
       detectSymbols: shouldDetect = 'true',
-      language = 'both' 
+      language = 'en'
     } = req.query;
     
-    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}`);
+    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, language: ${language}`);
     
     let news = [];
     
     if (category === 'general' || category === 'stocks') {
-      console.log(`📊 Fetching news from ${POPULAR_STOCKS.length} popular stocks...`);
-      
-      // ✅ ดึงทุกหุ้นพร้อม delay เพื่อหลีก rate limit
       for (const symbol of POPULAR_STOCKS) {
         try {
           const symbolNews = await finnhubService.getCompanyNews(symbol);
           news.push(...symbolNews);
-          console.log(`  ✅ ${symbol}: ${symbolNews.length} articles`);
-          
-          // ✅ หน่วงเวลา 200ms ระหว่าง request
           await delay(200);
         } catch (err) {
-          console.warn(`  ⚠️  ${symbol}: ${err.message}`);
+          console.warn(`  ⚠️ ${symbol}: ${err.message}`);
         }
       }
-      
-      // Sort by date
       news.sort((a, b) => b.datetime - a.datetime);
-      
-      console.log(`✅ Total news from ${POPULAR_STOCKS.length} stocks: ${news.length} articles`);
-      
     } else {
       news = await finnhubService.getNewsByCategory(category, 'en', 'US');
     }
     
     const limitedNews = news.slice(0, parseInt(limit));
     
-    let validImageCount = 0;
-    let noImageCount = 0;
-    
-    let formattedNews = limitedNews.map((item, index) => {
-      if (item.image) {
-        validImageCount++;
-      } else {
-        noImageCount++;
-      }
-      
-      return {
-        id: item.id || index,
-        title: item.headline || item.title,
-        headline: item.headline || item.title,
-        source: item.source,
-        timeAgo: getTimeAgo(item.datetime),
-        category: item.category,
-        url: item.url,
-        image: item.image,
-        summary: item.summary,
-        datetime: item.datetime,
-        language: item.language || 'en',
-        enriched: item.enriched,
-        symbols: item.symbols || []
-      };
-    });
+    let formattedNews = limitedNews.map((item, index) => ({
+      id: item.id || index,
+      title: item.headline || item.title,
+      headline: item.headline || item.title,
+      source: item.source,
+      timeAgo: getTimeAgo(item.datetime),
+      category: item.category,
+      url: item.url,
+      image: item.image,
+      summary: item.summary,
+      datetime: item.datetime,
+      language: 'en',
+      symbols: item.symbols || []
+    }));
     
     if (shouldDetect === 'true') {
-      console.log('🔍 Detecting symbols in news...');
       formattedNews = symbolDetector.detectSymbolsForArticles(formattedNews);
-      
-      const newsWithSymbols = formattedNews.filter(n => n.symbols && n.symbols.length > 0).length;
-      console.log(`📊 Detected symbols in ${newsWithSymbols}/${formattedNews.length} articles`);
     }
-    
-    console.log(`✅ Formatted ${formattedNews.length} news`);
+
+    // ✅ แปลด้วย Google Translate API
+    if (language === 'th') {
+      formattedNews = await translationService.translateNews(formattedNews, 'th');
+    }
     
     res.json({
       success: true,
       count: formattedNews.length,
-      stats: {
-        withImages: validImageCount,
-        withoutImages: noImageCount,
-        enriched: formattedNews.filter(n => n.enriched).length,
-        withSymbols: shouldDetect === 'true' 
-          ? formattedNews.filter(n => n.symbols && n.symbols.length > 0).length 
-          : undefined,
-        languages: {
-          th: 0, 
-          en: formattedNews.length
-        }
-      },
+      language: language,
       data: formattedNews
     });
     
@@ -117,13 +86,147 @@ router.get('/', newsValidation, validate, async (req, res) => {
   }
 });
 
+// =============================================
+// 🌐 POST /api/news/translate - แปลข่าว
+// =============================================
+router.post('/translate', async (req, res) => {
+  try {
+    const { articles, targetLang } = req.body;
+    
+    if (!articles || !Array.isArray(articles)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Articles array is required'
+      });
+    }
+
+    if (!targetLang || !['th', 'en'].includes(targetLang)) {
+      return res.status(400).json({
+        success: false,
+        message: 'targetLang must be "th" or "en"'
+      });
+    }
+
+    console.log(`🌐 Translating ${articles.length} articles to ${targetLang}`);
+    
+    // ✅ ใช้ Google Translate API
+    const translatedArticles = await translationService.translateNews(articles, targetLang);
+    
+    res.json({
+      success: true,
+      count: translatedArticles.length,
+      targetLang,
+      data: translatedArticles
+    });
+    
+  } catch (error) {
+    console.error('❌ Translation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Translation failed',
+      error: error.message
+    });
+  }
+});
+
+// =============================================
+// 🌐 POST /api/news/translate/single - แปลข่าวตัวเดียว
+// =============================================
+router.post('/translate/single', async (req, res) => {
+  try {
+    const { article, targetLang } = req.body;
+    
+    if (!article) {
+      return res.status(400).json({
+        success: false,
+        message: 'Article is required'
+      });
+    }
+
+    const translatedArticle = await translationService.translateSingleArticle(article, targetLang);
+    
+    res.json({
+      success: true,
+      data: translatedArticle
+    });
+    
+  } catch (error) {
+    console.error('❌ Translation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Translation failed',
+      error: error.message
+    });
+  }
+});
+
+// =============================================
+// 🤖 POST /api/news/analyze - วิเคราะห์ข่าวด้วย AI
+// =============================================
+router.post('/analyze', async (req, res) => {
+  try {
+    const { article, language = 'th' } = req.body;
+    
+    if (!article) {
+      return res.status(400).json({
+        success: false,
+        message: 'Article is required'
+      });
+    }
+
+    console.log(`🤖 Analyzing article: "${article.title?.substring(0, 50)}..."`);
+    
+    const analysis = await geminiService.analyzeNews(article, language);
+    
+    res.json({
+      success: true,
+      articleId: article.id,
+      analysis
+    });
+    
+  } catch (error) {
+    console.error('❌ Analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Analysis failed',
+      error: error.message
+    });
+  }
+});
+
+// =============================================
+// 🤖 GET /api/news/ai/status - ตรวจสอบสถานะ AI
+// =============================================
+router.get('/ai/status', async (req, res) => {
+  try {
+    const geminiStatus = await geminiService.checkStatus();
+    const translationStatus = await translationService.checkStatus();
+    const translationStats = translationService.getCacheStats();
+    
+    res.json({
+      success: true,
+      gemini: geminiStatus,
+      translation: {
+        status: translationStatus,
+        cache: translationStats
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// =============================================
+// 📊 GET /api/news/symbols/trending - หุ้นยอดนิยม
+// =============================================
 router.get('/symbols/trending', async (req, res) => {
   try {
     const { limit = 8 } = req.query;
     
-    console.log(`📊 Fetching trending symbols - limit: ${limit}`);
-    
-    // ✅ Sequential requests with delay
     let allNews = [];
     for (const symbol of POPULAR_STOCKS) {
       try {
@@ -131,13 +234,11 @@ router.get('/symbols/trending', async (req, res) => {
         allNews.push(...news);
         await delay(200);
       } catch (err) {
-        console.warn(`⚠️  ${symbol}:`, err.message);
+        console.warn(`⚠️ ${symbol}:`, err.message);
       }
     }
     
     const trending = symbolDetector.getTrendingSymbols(allNews, parseInt(limit));
-    
-    console.log(`✅ Found ${trending.length} trending symbols`);
     
     res.json({
       success: true,
@@ -155,18 +256,18 @@ router.get('/symbols/trending', async (req, res) => {
   }
 });
 
+// =============================================
+// 📰 GET /api/news/by-symbol/:symbol
+// =============================================
 router.get('/by-symbol/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { limit = 10 } = req.query;
-    
-    console.log(`📰 Fetching news for symbol: ${symbol}`);
+    const { limit = 10, language = 'en' } = req.query;
     
     let allNews = await finnhubService.getCompanyNews(symbol.toUpperCase());
-    
     const limitedNews = allNews.slice(0, parseInt(limit));
     
-    const formattedNews = limitedNews.map((item, index) => ({
+    let formattedNews = limitedNews.map((item, index) => ({
       id: item.id || index,
       title: item.headline || item.title,
       source: item.source,
@@ -178,16 +279,19 @@ router.get('/by-symbol/:symbol', async (req, res) => {
       datetime: item.datetime,
       symbol: symbol.toUpperCase(),
       symbols: [symbol.toUpperCase()],
-      language: item.language || 'en',
-      enriched: item.enriched
+      language: 'en'
     }));
-    
-    console.log(`✅ Found ${formattedNews.length} news for ${symbol}`);
+
+    // แปลถ้าต้องการภาษาไทย
+    if (language === 'th') {
+      formattedNews = await translationService.translateNews(formattedNews, 'th');
+    }
     
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
       count: formattedNews.length,
+      language,
       data: formattedNews
     });
     
@@ -201,52 +305,17 @@ router.get('/by-symbol/:symbol', async (req, res) => {
   }
 });
 
-router.get('/summary/symbols', async (req, res) => {
-  try {
-    console.log('📊 Generating symbol summary from recent news');
-    
-    // Sequential requests with delay
-    let allNews = [];
-    for (const symbol of POPULAR_STOCKS) {
-      try {
-        const news = await finnhubService.getCompanyNews(symbol);
-        allNews.push(...news);
-        await delay(200);
-      } catch (err) {
-        console.warn(`⚠️  ${symbol}:`, err.message);
-      }
-    }
-    
-    const summary = symbolDetector.generateSymbolSummary(allNews);
-    
-    console.log(`✅ Generated summary for ${summary.length} symbols`);
-    
-    res.json({
-      success: true,
-      count: summary.length,
-      data: summary
-    });
-    
-  } catch (error) {
-    console.error('❌ Error generating symbol summary:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate symbol summary',
-      error: error.message
-    });
-  }
-});
-
+// =============================================
+// 📰 GET /api/news/company/:symbol
+// =============================================
 router.get('/company/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { limit = 10 } = req.query;
-    
-    console.log(`📰 Fetching company news for ${symbol}`);
+    const { limit = 10, language = 'en' } = req.query;
     
     let news = await finnhubService.getCompanyNews(symbol.toUpperCase());
     
-    const formattedNews = news.slice(0, parseInt(limit)).map((item, index) => ({
+    let formattedNews = news.slice(0, parseInt(limit)).map((item, index) => ({
       id: item.id || index,
       title: item.headline || item.title,
       source: item.source,
@@ -258,16 +327,18 @@ router.get('/company/:symbol', async (req, res) => {
       datetime: item.datetime,
       symbol: symbol.toUpperCase(),
       symbols: [symbol.toUpperCase()],
-      language: item.language || 'en',
-      enriched: item.enriched
+      language: 'en'
     }));
-    
-    console.log(`✅ ${symbol}: ${formattedNews.length} news`);
+
+    if (language === 'th') {
+      formattedNews = await translationService.translateNews(formattedNews, 'th');
+    }
     
     res.json({
       success: true,
       symbol: symbol.toUpperCase(),
       count: formattedNews.length,
+      language,
       data: formattedNews
     });
     
@@ -281,6 +352,9 @@ router.get('/company/:symbol', async (req, res) => {
   }
 });
 
+// =============================================
+// Helper function
+// =============================================
 function getTimeAgo(timestamp) {
   const seconds = Math.floor((Date.now() / 1000) - timestamp);
   

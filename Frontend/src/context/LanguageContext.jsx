@@ -12,66 +12,8 @@ const translations = {
     },
     header: {
       signIn: 'Sign In',
-      signUp: 'Sign Up'
-    },
-    login: {
-      welcome: 'Welcome back',
-      signInContinue: 'Sign in to continue to your account',
-      emailLabel: 'Email',
-      emailPlaceholder: 'Enter your email',
-      passwordLabel: 'Password',
-      passwordPlaceholder: 'Enter your password',
-      rememberMe: 'Remember me',
-      forgotPassword: 'Forgot password?',
-      signInBtn: 'Sign In',
-      signingIn: 'Signing in...',
-      or: 'or',
-      continueWithGoogle: 'Continue with Google',
-      continueWithLine: 'Continue with LINE',
-      noAccount: "Don't have an account?",
-      signUpLink: 'Sign up',
-      errors: {
-        emailRequired: 'Email is required',
-        emailInvalid: 'Invalid email format',
-        passwordRequired: 'Password is required',
-        passwordLength: 'Password must be at least 6 characters',
-        invalidCredentials: 'Invalid email or password',
-        network: 'Network error. Please check your connection',
-        unknown: 'An unexpected error occurred'
-      }
-    },
-    signup: {
-      createAccount: 'Create account',
-      joinUs: 'Join us to start tracking stocks',
-      nameLabel: 'Full Name',
-      namePlaceholder: 'Enter your name',
-      emailLabel: 'Email',
-      emailPlaceholder: 'Enter your email',
-      passwordLabel: 'Password',
-      passwordPlaceholder: 'Create a password',
-      confirmPasswordLabel: 'Confirm Password',
-      confirmPasswordPlaceholder: 'Confirm your password',
-      agreeTo: 'I agree to the',
-      terms: 'Terms of Service',
-      and: 'and',
-      privacy: 'Privacy Policy',
-      createAccountBtn: 'Create Account',
-      creatingAccount: 'Creating account...',
-      haveAccount: 'Already have an account?',
-      signInLink: 'Sign in',
-      errors: {
-        nameRequired: 'Name is required',
-        nameLength: 'Name must be at least 2 characters',
-        emailRequired: 'Email is required',
-        emailInvalid: 'Invalid email format',
-        passwordRequired: 'Password is required',
-        passwordLength: 'Password must be at least 8 characters',
-        confirmPasswordRequired: 'Please confirm your password',
-        passwordMismatch: 'Passwords do not match'
-      },
-      alert: {
-        success: 'Account created successfully!'
-      }
+      signUp: 'Sign Up',
+      welcome: 'Welcome to News App'
     },
     home: {
       latestNews: 'Latest News',
@@ -115,7 +57,20 @@ const translations = {
       timeYear: 'This Year',
       sortRelevance: 'Most Relevant',
       sortRecent: 'Most Recent',
-      sortPopular: 'Most Popular'
+      sortPopular: 'Most Popular',
+      categories: {
+        all: 'All',
+        stocks: 'Stocks',
+        ai: 'AI Technology',
+        crypto: 'Cryptocurrency',
+        business: 'Business',
+        technology: 'Technology'
+      },
+      sort: {
+        recent: 'Most Recent',
+        oldest: 'Oldest First',
+        relevant: 'Most Relevant'
+      }
     },
     newsCard: {
       match: 'match'
@@ -170,10 +125,6 @@ const translations = {
       loadingNews: 'Loading news from {count} stocks...',
       stocks: 'stocks'
     },
-    langToggle: {
-      titleEN: 'Switch to English',
-      titleTH: 'เปลี่ยนเป็นภาษาไทย'
-    },
     imageFallback: {
       placeholder: 'Image placeholder',
       loading: 'Loading image'
@@ -193,66 +144,8 @@ const translations = {
     },
     header: {
       signIn: 'เข้าสู่ระบบ',
-      signUp: 'สมัครสมาชิก'
-    },
-    login: {
-      welcome: 'ยินดีต้อนรับกลับ',
-      signInContinue: 'ลงชื่อเข้าใช้เพื่อเข้าสู่บัญชีของคุณ',
-      emailLabel: 'อีเมล',
-      emailPlaceholder: 'กรอกอีเมลของคุณ',
-      passwordLabel: 'รหัสผ่าน',
-      passwordPlaceholder: 'กรอกรหัสผ่านของคุณ',
-      rememberMe: 'จดจำฉันไว้',
-      forgotPassword: 'ลืมรหัสผ่าน?',
-      signInBtn: 'เข้าสู่ระบบ',
-      signingIn: 'กำลังเข้าสู่ระบบ...',
-      or: 'หรือ',
-      continueWithGoogle: 'เข้าสู่ระบบด้วย Google',
-      continueWithLine: 'เข้าสู่ระบบด้วย LINE',
-      noAccount: 'ยังไม่มีบัญชี?',
-      signUpLink: 'สมัครสมาชิก',
-      errors: {
-        emailRequired: 'กรุณากรอกอีเมล',
-        emailInvalid: 'รูปแบบอีเมลไม่ถูกต้อง',
-        passwordRequired: 'กรุณากรอกรหัสผ่าน',
-        passwordLength: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
-        invalidCredentials: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
-        network: 'เกิดข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่อ',
-        unknown: 'เกิดข้อผิดพลาดที่ไม่คาดคิด'
-      }
-    },
-    signup: {
-      createAccount: 'สร้างบัญชี',
-      joinUs: 'เข้าร่วมกับเราเพื่อเริ่มติดตามหุ้น',
-      nameLabel: 'ชื่อ-นามสกุล',
-      namePlaceholder: 'กรอกชื่อของคุณ',
-      emailLabel: 'อีเมล',
-      emailPlaceholder: 'กรอกอีเมลของคุณ',
-      passwordLabel: 'รหัสผ่าน',
-      passwordPlaceholder: 'สร้างรหัสผ่าน',
-      confirmPasswordLabel: 'ยืนยันรหัสผ่าน',
-      confirmPasswordPlaceholder: 'ยืนยันรหัสผ่านอีกครั้ง',
-      agreeTo: 'ฉันยอมรับ',
-      terms: 'ข้อกำหนดในการให้บริการ',
-      and: 'และ',
-      privacy: 'นโยบายความเป็นส่วนตัว',
-      createAccountBtn: 'สร้างบัญชี',
-      creatingAccount: 'กำลังสร้างบัญชี...',
-      haveAccount: 'มีบัญชีอยู่แล้ว?',
-      signInLink: 'เข้าสู่ระบบ',
-      errors: {
-        nameRequired: 'กรุณากรอกชื่อ',
-        nameLength: 'ชื่อต้องมีอย่างน้อย 2 ตัวอักษร',
-        emailRequired: 'กรุณากรอกอีเมล',
-        emailInvalid: 'รูปแบบอีเมลไม่ถูกต้อง',
-        passwordRequired: 'กรุณากรอกรหัสผ่าน',
-        passwordLength: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
-        confirmPasswordRequired: 'กรุณายืนยันรหัสผ่าน',
-        passwordMismatch: 'รหัสผ่านไม่ตรงกัน'
-      },
-      alert: {
-        success: 'สร้างบัญชีสำเร็จ!'
-      }
+      signUp: 'สมัครสมาชิก',
+      welcome: 'ยินดีต้อนรับสู่แอปข่าว'
     },
     home: {
       latestNews: 'ข่าวล่าสุด',
@@ -296,7 +189,20 @@ const translations = {
       timeYear: 'ปีนี้',
       sortRelevance: 'เกี่ยวข้องที่สุด',
       sortRecent: 'ล่าสุด',
-      sortPopular: 'ยอดนิยมที่สุด'
+      sortPopular: 'ยอดนิยมที่สุด',
+      categories: {
+        all: 'ทั้งหมด',
+        stocks: 'หุ้น',
+        ai: 'เทคโนโลยี AI',
+        crypto: 'คริปโตเคอเรนซี',
+        business: 'ธุรกิจ',
+        technology: 'เทคโนโลยี'
+      },
+      sort: {
+        recent: 'ล่าสุด',
+        oldest: 'เก่าสุด',
+        relevant: 'เกี่ยวข้องที่สุด'
+      }
     },
     newsCard: {
       match: 'ตรงกัน'
@@ -351,10 +257,6 @@ const translations = {
       loadingNews: 'กำลังโหลดข่าวจาก {count} หุ้น...',
       stocks: 'หุ้น'
     },
-    langToggle: {
-      titleEN: 'Switch to English',
-      titleTH: 'เปลี่ยนเป็นภาษาไทย'
-    },
     imageFallback: {
       placeholder: 'ตัวยึดรูปภาพ',
       loading: 'กำลังโหลดรูปภาพ'
@@ -368,7 +270,6 @@ const translations = {
   }
 };
 
-
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('app_language');
@@ -378,7 +279,7 @@ export const LanguageProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('app_language', language);
     document.documentElement.lang = language;
-    console.log(' Language changed to:', language);
+    console.log('🌐 Language changed to:', language);
   }, [language]);
 
   const toggleLanguage = () => {

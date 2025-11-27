@@ -1,9 +1,9 @@
 import rateLimit from 'express-rate-limit';
 
-// General API rate limit - เพิ่มขึ้นสำหรับ development
+// General API rate limit
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // เพิ่มเป็น 1000 ใน dev
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
   message: {
     success: false,
     message: 'Too many requests, please try again later.'
@@ -19,21 +19,10 @@ export const apiLimiter = rateLimit({
   }
 });
 
-// Auth endpoints rate limit
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 5 : 100, // เพิ่มใน dev
-  skipSuccessfulRequests: true,
-  message: {
-    success: false,
-    message: 'Too many login attempts, please try again after 15 minutes.'
-  }
-});
-
 // Search rate limit
 export const searchLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: process.env.NODE_ENV === 'production' ? 30 : 300, // เพิ่มใน dev
+  max: process.env.NODE_ENV === 'production' ? 30 : 300,
   message: {
     success: false,
     message: 'Too many search requests, please slow down.'

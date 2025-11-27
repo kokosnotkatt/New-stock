@@ -1,17 +1,18 @@
+// Frontend/src/services/apiService.js
 import axios from "axios";
-import authService from "./authService";
 
 class ApiService {
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000;
+    this.translationCache = new Map(); // Cache สำหรับ translation
     this.requestQueue = new Map();
     this.retryCount = 3;
     this.retryDelay = 1000;
 
     axios.defaults.baseURL = this.baseURL;
-    axios.defaults.timeout = 10000;
+    axios.defaults.timeout = 30000; // เพิ่ม timeout เป็น 30 วินาที สำหรับ translation
 
     this.setupInterceptors();
   }
@@ -19,227 +20,265 @@ class ApiService {
   setupInterceptors() {
     axios.interceptors.request.use(
       (config) => {
-        const token = authService.getToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
         config.metadata = { startTime: new Date() };
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
     axios.interceptors.response.use(
       (response) => {
-        if (process.env.NODE_ENV === "development") {
-          const endTime = new Date();
-          const duration = endTime - response.config.metadata.startTime;
-          console.log(
-            `[API] ${response.config.method.toUpperCase()} ${
-              response.config.url
-            } - ${duration}ms`
-          );
+        if (import.meta.env.DEV) {
+          const duration = new Date() - response.config.metadata.startTime;
+          console.log(`[API] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration}ms`);
         }
         return response;
       },
-      async (error) => {
-        return this.handleError(error);
-      }
+      (error) => this.handleError(error)
     );
   }
 
   async handleError(error) {
-    // Retry logic for network errors
     if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
       const config = error.config;
-      
-      if (!config || !config.retry) {
-        config.retry = 0;
-      }
-
+      if (!config.retry) config.retry = 0;
       if (config.retry < this.retryCount) {
-        config.retry += 1;
-        
-        const delay = this.retryDelay * Math.pow(2, config.retry - 1);
-        console.log(`⚠️ Retrying request (${config.retry}/${this.retryCount}) after ${delay}ms`);
-        
-        await this.sleep(delay);
+        config.retry++;
+        await this.sleep(this.retryDelay * Math.pow(2, config.retry - 1));
         return axios(config);
       }
     }
 
     if (error.response) {
       const { status, data } = error.response;
-
-      switch (status) {
-        case 400:
-          return Promise.reject({
-            message: data.message || "Invalid request. Please check your input.",
-            code: "BAD_REQUEST",
-            status,
-          });
-
-        case 401:
-          authService.logout();
-          window.location.href = "/";
-          return Promise.reject({
-            message: "Your session has expired. Please login again.",
-            code: "UNAUTHORIZED",
-            status,
-          });
-
-        case 403:
-          return Promise.reject({
-            message: "You do not have permission to perform this action.",
-            code: "FORBIDDEN",
-            status,
-          });
-
-        case 404:
-          return Promise.reject({
-            message: "The requested resource was not found.",
-            code: "NOT_FOUND",
-            status,
-          });
-
-        case 429:
-          const retryAfter = error.response.headers['retry-after'];
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000;
-          
-          return Promise.reject({
-            message: `Too many requests. Please try again in ${Math.ceil(waitTime/1000)} seconds.`,
-            code: "RATE_LIMITED",
-            status,
-            retryAfter: waitTime
-          });
-
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          return Promise.reject({
-            message: "Server error. Please try again later.",
-            code: "SERVER_ERROR",
-            status,
-          });
-
-        default:
-          return Promise.reject({
-            message: data.message || "An unexpected error occurred.",
-            code: "UNKNOWN_ERROR",
-            status,
-          });
-      }
-    } else if (error.request) {
       return Promise.reject({
-        message: "Network error. Please check your connection.",
-        code: "NETWORK_ERROR",
-      });
-    } else {
-      return Promise.reject({
-        message: error.message || "An error occurred while making the request.",
-        code: "REQUEST_ERROR",
+        message: data.message || 'An error occurred',
+        code: status,
+        status
       });
     }
+    
+    return Promise.reject({
+      message: error.message || 'Network error',
+      code: 'NETWORK_ERROR'
+    });
   }
 
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  getCacheKey(url, params) {
-    return `${url}-${JSON.stringify(params || {})}`;
-  }
+  // =============================================
+  // 📰 News API
+  // =============================================
+  
+  async fetchNews(params = {}) {
+    const { page = 1, limit = 20, category = "stocks", language = "en" } = params;
+    const cacheKey = `news-${category}-${limit}-${language}`;
 
-  getFromCache(key) {
-    const cached = this.cache.get(key);
-
-    if (cached) {
-      const { data, timestamp } = cached;
-      const now = Date.now();
-
-      if (now - timestamp < this.cacheTimeout) {
-        return data;
-      } else {
-        this.cache.delete(key);
-      }
+    // Check cache
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      console.log('✅ Cache hit:', cacheKey);
+      return cached.data;
     }
 
-    return null;
+    try {
+      const response = await axios.get('/news', {
+        params: { page, limit, category, language }
+      });
+      
+      // Cache result
+      this.cache.set(cacheKey, {
+        data: response.data,
+        timestamp: Date.now()
+      });
+
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 
-  setCache(key, data) {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
+  // =============================================
+  // 🌐 Translation API
+  // =============================================
+
+  /**
+   * แปลข่าวหลายตัว
+   */
+  async translateNews(articles, targetLang) {
+    // Check cache for each article
+    const cachedArticles = [];
+    const uncachedArticles = [];
+
+    articles.forEach(article => {
+      const cacheKey = `translate-${article.id}-${targetLang}`;
+      const cached = this.translationCache.get(cacheKey);
+      
+      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+        cachedArticles.push(cached.data);
+      } else {
+        uncachedArticles.push(article);
+      }
     });
 
-    if (this.cache.size > 100) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+    console.log(`🌐 Translation: ${cachedArticles.length} cached, ${uncachedArticles.length} to translate`);
+
+    // ถ้าทุกตัวอยู่ใน cache แล้ว
+    if (uncachedArticles.length === 0) {
+      return cachedArticles;
+    }
+
+    try {
+      const response = await axios.post('/news/translate', {
+        articles: uncachedArticles,
+        targetLang
+      });
+
+      if (response.data.success) {
+        // Cache translated articles
+        response.data.data.forEach(article => {
+          const cacheKey = `translate-${article.id}-${targetLang}`;
+          this.translationCache.set(cacheKey, {
+            data: article,
+            timestamp: Date.now()
+          });
+        });
+
+        // รวม cached + newly translated
+        return [...cachedArticles, ...response.data.data];
+      }
+
+      throw new Error(response.data.message);
+    } catch (error) {
+      console.error('❌ Translation failed:', error);
+      // Return original articles if translation fails
+      return articles;
     }
   }
+
+  /**
+   * แปลข่าวตัวเดียว
+   */
+  async translateSingleArticle(article, targetLang) {
+    const cacheKey = `translate-${article.id}-${targetLang}`;
+    const cached = this.translationCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.data;
+    }
+
+    try {
+      const response = await axios.post('/news/translate/single', {
+        article,
+        targetLang
+      });
+
+      if (response.data.success) {
+        this.translationCache.set(cacheKey, {
+          data: response.data.data,
+          timestamp: Date.now()
+        });
+        return response.data.data;
+      }
+
+      throw new Error(response.data.message);
+    } catch (error) {
+      console.error('❌ Translation failed:', error);
+      return article;
+    }
+  }
+
+  // =============================================
+  // 🤖 AI Analysis API
+  // =============================================
+
+  /**
+   * วิเคราะห์ข่าวด้วย AI
+   */
+  async analyzeNews(article, language = 'th') {
+    const cacheKey = `analyze-${article.id}-${language}`;
+    const cached = this.cache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) { // 1 hour cache
+      console.log('✅ AI Analysis cache hit');
+      return cached.data;
+    }
+
+    try {
+      const response = await axios.post('/news/analyze', {
+        article,
+        language
+      });
+
+      if (response.data.success) {
+        this.cache.set(cacheKey, {
+          data: response.data.analysis,
+          timestamp: Date.now()
+        });
+        return response.data.analysis;
+      }
+
+      throw new Error(response.data.message);
+    } catch (error) {
+      console.error('❌ AI Analysis failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ตรวจสอบสถานะ AI
+   */
+  async getAIStatus() {
+    try {
+      const response = await axios.get('/news/ai/status');
+      return response.data;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // =============================================
+  // 📊 Other APIs
+  // =============================================
+
+  async fetchTrendingSymbols(limit = 8) {
+    try {
+      const response = await axios.get('/news/symbols/trending', {
+        params: { limit }
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async fetchNewsBySymbol(symbol, limit = 10, language = 'en') {
+    try {
+      const response = await axios.get(`/news/by-symbol/${symbol}`, {
+        params: { limit, language }
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // =============================================
+  // 🗑️ Cache Management
+  // =============================================
 
   clearCache() {
     this.cache.clear();
+    this.translationCache.clear();
+    console.log('🗑️ All caches cleared');
   }
 
-  async deduplicateRequest(key, requestFn) {
-    if (this.requestQueue.has(key)) {
-      return this.requestQueue.get(key);
-    }
-
-    const promise = requestFn().finally(() => {
-      this.requestQueue.delete(key);
-    });
-
-    this.requestQueue.set(key, promise);
-    return promise;
+  clearTranslationCache() {
+    this.translationCache.clear();
+    console.log('🗑️ Translation cache cleared');
   }
-
-  async fetchNews(params = {}) {
-    const {
-      page = 1,
-      limit = 10,
-      category = "all",
-      sortBy = "recent",
-      search = "",
-      language,
-    } = params;
-
-    const url = "/news";
-    const cacheKey = this.getCacheKey(url, params);
-
-    const cached = this.getFromCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    return this.deduplicateRequest(cacheKey, async () => {
-      try {
-        const response = await axios.get(url, {
-          params: {
-            page,
-            limit,
-            category: category !== "all" ? category : undefined,
-            sortBy,
-            search: search || undefined,
-            language,
-          },
-        });
-
-        const data = response.data;
-        this.setCache(cacheKey, data);
-        return data;
-      } catch (error) {
-        throw error;
-      }
-    });
-  }
-
-  // ... rest of methods remain the same
 }
 
 export default new ApiService();

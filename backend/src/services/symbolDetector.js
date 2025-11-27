@@ -292,7 +292,7 @@ class SymbolDetector {
   }
 
   /**
-   * ✅ ดึงข้อมูลหุ้นจาก symbol
+   *  ดึงข้อมูลหุ้นจาก symbol
    */
   getStockInfo(symbol) {
     const symbolUpper = symbol.toUpperCase();

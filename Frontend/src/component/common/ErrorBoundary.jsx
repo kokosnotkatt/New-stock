@@ -11,7 +11,13 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    // Simple console logging แทน errorLogger
+    console.error('❌ Error caught by boundary:', {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      timestamp: new Date().toISOString()
+    });
   }
 
   render() {
@@ -53,7 +59,7 @@ class ErrorBoundary extends React.Component {
             
             <button
               onClick={() => window.location.reload()}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-3 rounded-lg transition-colors duration-200" // <-- แก้ไข
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-3 rounded-lg transition-colors duration-200"
             >
               โหลดหน้าใหม่
             </button>
