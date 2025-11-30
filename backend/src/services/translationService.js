@@ -1,4 +1,3 @@
-// backend/src/services/translationService.js
 import { Translate } from '@google-cloud/translate/build/src/v2/index.js';
 
 class TranslationService {
@@ -11,16 +10,16 @@ class TranslationService {
     if (this.apiKey) {
       this.initialize();
     } else {
-      console.warn('⚠️ GOOGLE_TRANSLATE_API_KEY not set - Translation disabled');
+      console.warn(' GOOGLE_TRANSLATE_API_KEY not set - Translation disabled');
     }
   }
 
   initialize() {
     try {
       this.translate = new Translate({ key: this.apiKey });
-      console.log('✅ Google Cloud Translation initialized');
+      console.log(' Google Cloud Translation initialized');
     } catch (error) {
-      console.error('❌ Failed to initialize Translation:', error.message);
+      console.error(' Failed to initialize Translation:', error.message);
     }
   }
 
@@ -47,17 +46,17 @@ class TranslationService {
       
       return translation;
     } catch (error) {
-      console.error('❌ Translation error:', error.message);
+      console.error(' Translation error:', error.message);
       return text; // Return original if failed
     }
   }
 
   /**
-   * แปลข่าวหลายตัว (Batch)
+   * แปลข่าวหลายตัว (Batch) - Google Translate
    */
   async translateNews(articles, targetLang) {
     const sourceLang = targetLang === 'th' ? 'en' : 'th';
-    console.log(`🌐 Translating ${articles.length} articles: ${sourceLang} → ${targetLang} (Google Translate)`);
+    console.log(` Translating ${articles.length} articles: ${sourceLang} → ${targetLang} (Google Translate)`);
 
     if (!this.translate) {
       console.warn('Translation service not initialized - returning original articles');
@@ -66,32 +65,37 @@ class TranslationService {
 
     const results = [];
     
-    // แปลทีละ batch (10 ตัวต่อครั้ง) เพื่อเร็วขึ้น
-    const batchSize = 10;
+    // แปลทีละ batch (5 ตัวต่อครั้ง) เพื่อเร็วขึ้น
+    const batchSize = 5;
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
       
       const translatedBatch = await Promise.all(
         batch.map(async (article) => {
           try {
-            // แปลเฉพาะ headline (ไม่แปล summary เพื่อความเร็ว)
-            const translatedHeadline = await this.translateText(
-              article.headline || article.title, 
-              targetLang, 
-              sourceLang
-            );
+            // แปลทั้ง headline และ summary
+            const [translatedHeadline, translatedSummary] = await Promise.all([
+              this.translateText(
+                article.headline || article.title, 
+                targetLang, 
+                sourceLang
+              ),
+              article.summary 
+                ? this.translateText(article.summary, targetLang, sourceLang)
+                : Promise.resolve(article.summary)
+            ]);
 
             return {
               ...article,
               headline: translatedHeadline,
               title: translatedHeadline,
-              // summary: ไม่แปล summary เพื่อความเร็ว
+              summary: translatedSummary || article.summary,
               originalHeadline: article.headline || article.title,
               originalSummary: article.summary,
               translatedTo: targetLang
             };
           } catch (error) {
-            console.error(`❌ Failed to translate article ${article.id}:`, error.message);
+            console.error(` Failed to translate article ${article.id}:`, error.message);
             return article;
           }
         })
@@ -99,10 +103,10 @@ class TranslationService {
 
       results.push(...translatedBatch);
       
-      console.log(`✅ Progress: ${Math.min(i + batchSize, articles.length)}/${articles.length}`);
+      console.log(` Progress: ${Math.min(i + batchSize, articles.length)}/${articles.length}`);
     }
 
-    console.log(`✅ Translated ${results.length} articles`);
+    console.log(` Translated ${results.length} articles`);
     return results;
   }
 
@@ -132,7 +136,7 @@ class TranslationService {
         translatedTo: targetLang
       };
     } catch (error) {
-      console.error('❌ Translation error:', error.message);
+      console.error(' Translation error:', error.message);
       return article;
     }
   }
@@ -161,7 +165,7 @@ class TranslationService {
 
   clearCache() {
     this.cache.clear();
-    console.log('🗑️ Translation cache cleared');
+    console.log(' Translation cache cleared');
   }
 
   getCacheStats() {

@@ -8,13 +8,11 @@ dotenv.config();
 class SymbolDetector {
   constructor() {
     this.symbolCache = new Map();
-    this.allStocks = new Map(); // ✅ เก็บหุ้นทั้งหมดจาก CSV
-    this.symbolToExchange = new Map(); // ✅ เก็บ exchange:symbol mapping
+    this.allStocks = new Map(); // 
+    this.symbolToExchange = new Map(); 
     
-    // ✅ โหลดข้อมูลจาก CSV
     this.loadStocksFromCSV();
     
-    // Popular stocks (ใช้สำหรับ priority detection)
     this.popularStocks = new Set([
       'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'AMD',
       'JPM', 'BAC', 'WFC', 'GS', 'MS', 'V', 'MA',
@@ -24,7 +22,6 @@ class SymbolDetector {
       'XOM', 'CVX'
     ]);
     
-    // Company name variations (เพิ่มได้ตามต้องการ)
     this.companyNameMap = new Map([
       ['Apple Inc.', 'AAPL'],
       ['Apple', 'AAPL'],
@@ -56,14 +53,14 @@ class SymbolDetector {
   }
 
   /**
-   * ✅ โหลดข้อมูลหุ้นจาก CSV
+   *  โหลดข้อมูลหุ้นจาก CSV
    */
   loadStocksFromCSV() {
     try {
       const csvPath = path.join(process.cwd(), 'data', 'completed_us_stock.csv');
       
       if (!fs.existsSync(csvPath)) {
-        console.warn('⚠️  CSV file not found, using limited stock data');
+        console.warn('  CSV file not found, using limited stock data');
         return;
       }
 
@@ -101,15 +98,15 @@ class SymbolDetector {
         this.symbolToExchange.set(fullSymbol, symbol);
       }
       
-      console.log(`✅ Loaded ${this.allStocks.size} stocks from CSV`);
+      console.log(` Loaded ${this.allStocks.size} stocks from CSV`);
       
     } catch (error) {
-      console.error('❌ Error loading CSV:', error.message);
+      console.error(' Error loading CSV:', error.message);
     }
   }
 
   /**
-   * ✅ หา symbols จากข้อความ (อัพเดทให้ตรวจจับได้มากขึ้น)
+   *  หา symbols จากข้อความ (อัพเดทให้ตรวจจับได้มากขึ้น)
    */
   detectSymbols(article) {
     const { headline = '', summary = '', title = '' } = article;
@@ -155,7 +152,7 @@ class SymbolDetector {
       }
     }
 
-    // 5. ✅ ตรวจหา symbols อื่นๆ จาก CSV (ระวังการ match ที่ผิด)
+    // 5.  ตรวจหา symbols อื่นๆ จาก CSV (ระวังการ match ที่ผิด)
     const words = text.match(/\b[A-Z]{2,5}\b/g);
     if (words) {
       words.forEach(word => {
@@ -265,7 +262,7 @@ class SymbolDetector {
   }
 
   /**
-   * ✅ ดึงชื่อบริษัทจาก symbol (อัพเดทให้ใช้ CSV)
+   * ดึงชื่อบริษัทจาก symbol (อัพเดทให้ใช้ CSV)
    */
   getCompanyName(symbol) {
     const symbolUpper = symbol.toUpperCase();

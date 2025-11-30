@@ -1,4 +1,3 @@
-// backend/src/server.js
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,9 +12,15 @@ import { apiLimiter } from "./middleware/rateLimiter.js";
 import newsRoutes from "./routes/news.js";
 import stocksRoutes from "./routes/stocks.js";
 
+// Telegram Bot
+import telegramRoutes from './routes/telegram.js';
+import telegramService from './services/telegramService.js';
+import newsChecker from './jobs/newsChecker.js';
+
 // Log API Keys (masked)
-console.log("🔑 FINNHUB_API_KEY:", process.env.FINNHUB_API_KEY ? `${process.env.FINNHUB_API_KEY.substring(0, 10)}...` : '❌ NOT SET');
-console.log("🤖 GEMINI_API_KEY:", process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.substring(0, 10)}...` : '❌ NOT SET');
+console.log("FINNHUB_API_KEY:", process.env.FINNHUB_API_KEY ? `${process.env.FINNHUB_API_KEY.substring(0, 10)}...` : 'NOT SET');
+console.log("GEMINI_API_KEY:", process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.substring(0, 10)}...` : 'NOT SET');
+console.log("TELEGRAM_BOT_TOKEN:", process.env.TELEGRAM_BOT_TOKEN ? `${process.env.TELEGRAM_BOT_TOKEN.substring(0, 20)}...` : 'NOT SET');
 
 try {
   validateEnv();
@@ -49,7 +54,8 @@ app.get("/health", (req, res) => {
     features: {
       finnhub: !!process.env.FINNHUB_API_KEY,
       geminiAI: !!process.env.GEMINI_API_KEY,
-      translation: true // LibreTranslate (free)
+      translation: !!process.env.GOOGLE_TRANSLATE_API_KEY,
+      telegramBot: !!process.env.TELEGRAM_BOT_TOKEN
     }
   });
 });
@@ -57,6 +63,7 @@ app.get("/health", (req, res) => {
 // API Routes
 app.use("/api/news", apiLimiter, newsRoutes);
 app.use("/api/stocks", apiLimiter, stocksRoutes);
+app.use('/api/telegram', telegramRoutes); // Telegram routes
 
 // 404 handler
 app.use((req, res) => {
@@ -71,7 +78,7 @@ app.use((err, req, res, next) => {
   const status = err.status || 500;
   const message = err.message || "Internal server error";
 
-  console.error(`❌ [${new Date().toISOString()}] Error:`, {
+  console.error(`[${new Date().toISOString()}] Error:`, {
     message: err.message,
     status: status,
     path: req.path,
@@ -86,17 +93,28 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`\n📡 API Endpoints:`);
+  console.log(`\nServer running on http://localhost:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`\nAPI Endpoints:`);
   console.log(`   GET  /api/news              - Fetch news`);
   console.log(`   POST /api/news/translate    - Translate news`);
   console.log(`   POST /api/news/analyze      - AI Analysis`);
   console.log(`   GET  /api/news/ai/status    - AI Status`);
-  console.log(`   GET  /api/stocks/quote/:symbol - Stock quote\n`);
+  console.log(`   GET  /api/stocks/quote/:symbol - Stock quote`);
+  console.log(`   GET  /api/telegram/watchlist - Telegram watchlist\n`);
+  
+  // Start Telegram Bot
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    newsChecker.start();
+    console.log('Telegram Bot is ready');
+    console.log('Commands: /start, /watchlist, /add, /remove, /news, /analyze, /latest');
+    console.log('Auto notifications: Every 30 minutes\n');
+  } else {
+    console.warn('Telegram Bot disabled (no token)\n');
+  }
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("❌ Unhandled Promise Rejection:", err);
+  console.error("Unhandled Promise Rejection:", err);
   process.exit(1);
 });

@@ -1,0 +1,88 @@
+{
+  "350626": {
+    "code": "350626",
+    "sessionId": "a70b468b-00bd-45c7-a3ca-384347a528b0",
+    "createdAt": 1764502859938,
+    "expiresAt": 1764503159938,
+    "linked": true,
+    "userId": 7080390813,
+    "username": "Jjjj",
+    "linkedAt": 1764502866479
+  },
+  "ED29AD": {
+    "code": "ED29AD",
+    "sessionId": "61223b90-97a8-4e9b-8c5d-1c9d8add6134",
+    "createdAt": 1764450585632,
+    "expiresAt": 1764450885632,
+    "linked": true,
+    "userId": 7080390813,
+    "username": "Jjjj",
+    "linkedAt": 1764450593272
+  },
+  "D3EE94": {
+    "code": "D3EE94",
+    "sessionId": "61223b90-97a8-4e9b-8c5d-1c9d8add6134",
+    "createdAt": 1764452650256,
+    "expiresAt": 1764452950256,
+    "linked": true,
+    "userId": 7080390813,
+    "username": "Jjjj",
+    "linkedAt": 1764452661256
+  },
+  "CBF05C": {
+    "code": "CBF05C",
+    "sessionId": "61223b90-97a8-4e9b-8c5d-1c9d8add6134",
+    "createdAt": 1764452688953,
+    "expiresAt": 1764452988953,
+    "linked": true,
+    "userId": 7080390813,
+    "username": "Jjjj",
+    "linkedAt": 1764452694832
+  },
+  "DB9F5A": {
+    "code": "DB9F5A",
+    "sessionId": "a70b468b-00bd-45c7-a3ca-384347a528b0",
+    "createdAt": 1764494503864,
+    "expiresAt": 1764494803864,
+    "linked": false,
+    "userId": null,
+    "username": null
+  },
+  "6EA7AE": {
+    "code": "6EA7AE",
+    "sessionId": "a70b468b-00bd-45c7-a3ca-384347a528b0",
+    "createdAt": 1764499988924,
+    "expiresAt": 1764500288924,
+    "linked": false,
+    "userId": null,
+    "username": null
+  },
+  "59EFDB": {
+    "code": "59EFDB",
+    "sessionId": "a70b468b-00bd-45c7-a3ca-384347a528b0",
+    "createdAt": 1764502010817,
+    "expiresAt": 1764502310817,
+    "linked": false,
+    "userId": null,
+    "username": null
+  },
+  "7865CA": {
+    "code": "7865CA",
+    "sessionId": "ba84579c-bd5c-4dcb-9e40-d774b70a74ff",
+    "createdAt": 1764502903537,
+    "expiresAt": 1764503203537,
+    "linked": false,
+    "userId": null,
+    "username": null
+  },
+  "CB838D": {
+    "code": "CB838D",
+    "sessionId": "ba84579c-bd5c-4dcb-9e40-d774b70a74ff",
+    "createdAt": 1764507011602,
+    "expiresAt": 1764507311602,
+    "linked": true,
+    "userId": 7080390813,
+    "username": "Jjjj",
+    "linkedAt": 1764507016467
+  }
+}

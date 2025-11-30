@@ -1,5 +1,4 @@
 import express from 'express';
-import yahooFinanceService from '../services/yahooFinanceService.js';
 
 const router = express.Router();
 

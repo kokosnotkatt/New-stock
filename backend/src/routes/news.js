@@ -1,9 +1,8 @@
-// backend/src/routes/news.js
 import express from 'express';
 import finnhubService from '../services/finnhubService.js'; 
 import symbolDetector from '../services/symbolDetector.js';
-import translationService from '../services/translationService.js'; // Google Translate API
-import geminiService from '../services/geminiService.js'; // Gemini AI Analysis
+import geminiService from '../services/geminiService.js'; 
+import translationService from '../services/translationService.js';
 import { newsValidation, validate } from '../middleware/validation.js';
 
 const router = express.Router();
@@ -13,18 +12,18 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const POPULAR_STOCKS = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL'];
 
 // =============================================
-// 📰 GET /api/news - ดึงข่าวทั้งหมด
+//  GET /api/news - ดึงข่าวทั้งหมด
 // =============================================
 router.get('/', newsValidation, validate, async (req, res) => {
   try {
     const { 
       category = 'general', 
-      limit = 50, 
+      limit = 10,  
       detectSymbols: shouldDetect = 'true',
       language = 'en'
     } = req.query;
     
-    console.log(`📰 Fetching news - category: ${category}, limit: ${limit}, language: ${language}`);
+    console.log(` Fetching news - category: ${category}, limit: ${limit}, language: ${language}`);
     
     let news = [];
     
@@ -64,7 +63,6 @@ router.get('/', newsValidation, validate, async (req, res) => {
       formattedNews = symbolDetector.detectSymbolsForArticles(formattedNews);
     }
 
-    // ✅ แปลด้วย Google Translate API
     if (language === 'th') {
       formattedNews = await translationService.translateNews(formattedNews, 'th');
     }
@@ -77,7 +75,7 @@ router.get('/', newsValidation, validate, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching news:', error);
+    console.error(' Error fetching news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch news',
@@ -87,7 +85,7 @@ router.get('/', newsValidation, validate, async (req, res) => {
 });
 
 // =============================================
-// 🌐 POST /api/news/translate - แปลข่าว
+//  POST /api/news/translate - แปลข่าว
 // =============================================
 router.post('/translate', async (req, res) => {
   try {
@@ -107,9 +105,9 @@ router.post('/translate', async (req, res) => {
       });
     }
 
-    console.log(`🌐 Translating ${articles.length} articles to ${targetLang}`);
+    console.log(` Translating ${articles.length} articles to ${targetLang}`);
     
-    // ✅ ใช้ Google Translate API
+    // ใช้ Google Translate
     const translatedArticles = await translationService.translateNews(articles, targetLang);
     
     res.json({
@@ -120,7 +118,7 @@ router.post('/translate', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Translation error:', error);
+    console.error(' Translation error:', error);
     res.status(500).json({
       success: false,
       message: 'Translation failed',
@@ -130,7 +128,7 @@ router.post('/translate', async (req, res) => {
 });
 
 // =============================================
-// 🌐 POST /api/news/translate/single - แปลข่าวตัวเดียว
+//  POST /api/news/translate/single - แปลข่าวตัวเดียว
 // =============================================
 router.post('/translate/single', async (req, res) => {
   try {
@@ -143,6 +141,7 @@ router.post('/translate/single', async (req, res) => {
       });
     }
 
+    //  ใช้ Google Translate
     const translatedArticle = await translationService.translateSingleArticle(article, targetLang);
     
     res.json({
@@ -161,7 +160,7 @@ router.post('/translate/single', async (req, res) => {
 });
 
 // =============================================
-// 🤖 POST /api/news/analyze - วิเคราะห์ข่าวด้วย AI
+//  POST /api/news/analyze - วิเคราะห์ข่าวด้วย AI
 // =============================================
 router.post('/analyze', async (req, res) => {
   try {
@@ -174,8 +173,9 @@ router.post('/analyze', async (req, res) => {
       });
     }
 
-    console.log(`🤖 Analyzing article: "${article.title?.substring(0, 50)}..."`);
+    console.log(` Analyzing article: "${article.title?.substring(0, 50)}..."`);
     
+    //  ใช้ Gemini สำหรับ Analysis เท่านั้น
     const analysis = await geminiService.analyzeNews(article, language);
     
     res.json({
@@ -185,7 +185,7 @@ router.post('/analyze', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Analysis error:', error);
+    console.error(' Analysis error:', error);
     res.status(500).json({
       success: false,
       message: 'Analysis failed',
@@ -195,20 +195,24 @@ router.post('/analyze', async (req, res) => {
 });
 
 // =============================================
-// 🤖 GET /api/news/ai/status - ตรวจสอบสถานะ AI
+//  GET /api/news/ai/status - ตรวจสอบสถานะ AI
 // =============================================
 router.get('/ai/status', async (req, res) => {
   try {
     const geminiStatus = await geminiService.checkStatus();
     const translationStatus = await translationService.checkStatus();
-    const translationStats = translationService.getCacheStats();
+    const translationCacheStats = translationService.getCacheStats();
+    const geminiCacheStats = geminiService.getCacheStats();
     
     res.json({
       success: true,
-      gemini: geminiStatus,
+      gemini: {
+        ...geminiStatus,
+        cache: geminiCacheStats
+      },
       translation: {
         status: translationStatus,
-        cache: translationStats
+        cache: translationCacheStats
       }
     });
     
@@ -221,7 +225,7 @@ router.get('/ai/status', async (req, res) => {
 });
 
 // =============================================
-// 📊 GET /api/news/symbols/trending - หุ้นยอดนิยม
+//  GET /api/news/symbols/trending - หุ้นยอดนิยม
 // =============================================
 router.get('/symbols/trending', async (req, res) => {
   try {
@@ -234,7 +238,7 @@ router.get('/symbols/trending', async (req, res) => {
         allNews.push(...news);
         await delay(200);
       } catch (err) {
-        console.warn(`⚠️ ${symbol}:`, err.message);
+        console.warn(` ${symbol}:`, err.message);
       }
     }
     
@@ -247,7 +251,7 @@ router.get('/symbols/trending', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching trending symbols:', error);
+    console.error(' Error fetching trending symbols:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch trending symbols',
@@ -257,7 +261,7 @@ router.get('/symbols/trending', async (req, res) => {
 });
 
 // =============================================
-// 📰 GET /api/news/by-symbol/:symbol
+//  GET /api/news/by-symbol/:symbol
 // =============================================
 router.get('/by-symbol/:symbol', async (req, res) => {
   try {
@@ -270,6 +274,7 @@ router.get('/by-symbol/:symbol', async (req, res) => {
     let formattedNews = limitedNews.map((item, index) => ({
       id: item.id || index,
       title: item.headline || item.title,
+      headline: item.headline || item.title,
       source: item.source,
       timeAgo: getTimeAgo(item.datetime),
       category: item.category,
@@ -282,7 +287,7 @@ router.get('/by-symbol/:symbol', async (req, res) => {
       language: 'en'
     }));
 
-    // แปลถ้าต้องการภาษาไทย
+    //  แปลด้วย Google Translate
     if (language === 'th') {
       formattedNews = await translationService.translateNews(formattedNews, 'th');
     }
@@ -296,7 +301,7 @@ router.get('/by-symbol/:symbol', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching news by symbol:', error);
+    console.error(' Error fetching news by symbol:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch news by symbol',
@@ -306,7 +311,7 @@ router.get('/by-symbol/:symbol', async (req, res) => {
 });
 
 // =============================================
-// 📰 GET /api/news/company/:symbol
+//  GET /api/news/company/:symbol
 // =============================================
 router.get('/company/:symbol', async (req, res) => {
   try {
@@ -318,6 +323,7 @@ router.get('/company/:symbol', async (req, res) => {
     let formattedNews = news.slice(0, parseInt(limit)).map((item, index) => ({
       id: item.id || index,
       title: item.headline || item.title,
+      headline: item.headline || item.title,
       source: item.source,
       timeAgo: getTimeAgo(item.datetime),
       category: item.category || 'Company News',
@@ -330,6 +336,7 @@ router.get('/company/:symbol', async (req, res) => {
       language: 'en'
     }));
 
+    //  แปลด้วย Google Translate
     if (language === 'th') {
       formattedNews = await translationService.translateNews(formattedNews, 'th');
     }
@@ -343,7 +350,7 @@ router.get('/company/:symbol', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error fetching company news:', error);
+    console.error(' Error fetching company news:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch company news',

@@ -9,29 +9,27 @@ class FinnhubService {
     this.apiKey = process.env.FINNHUB_API_KEY;
     this.baseURL = 'https://finnhub.io/api/v1';
     this.cache = new Map();
-    this.cacheTimeout = 30 * 60 * 1000; // 30 minutes (เพิ่มเป็น 30 นาที)
+    this.cacheTimeout = 30 * 60 * 1000; 
     
-    // ✅ Rate limiting - Enhanced
     this.requestQueue = [];
     this.isProcessingQueue = false;
     this.requestsThisMinute = 0;
     this.lastRequestTime = 0;
     this.minuteResetTime = Date.now();
     
-    // Free tier: 60 calls/minute
-    this.maxRequestsPerMinute = 50; // เหลือ buffer 10 calls
-    this.minRequestInterval = 1200; // 1.2 วินาที (50 calls/min = safe)
+    this.maxRequestsPerMinute = 50; 
+    this.minRequestInterval = 1200; 
     
     this.validateApiKey();
   }
 
   validateApiKey() {
     if (!this.apiKey || this.apiKey === 'your_finnhub_api_key_here') {
-      console.error('\n❌ FINNHUB API KEY NOT CONFIGURED!');
-      console.error('📝 Get your key: https://finnhub.io/register\n');
+      console.error('\n FINNHUB API KEY NOT CONFIGURED!');
+      console.error(' Get your key: https://finnhub.io/register\n');
       return false;
     }
-    console.log(`✅ Finnhub API Key: ${this.apiKey.substring(0, 10)}...`);
+    console.log(` Finnhub API Key: ${this.apiKey.substring(0, 10)}...`);
     return true;
   }
 
@@ -39,9 +37,6 @@ class FinnhubService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * ⭐ Request Queue System
-   */
   async queueRequest(requestFn) {
     return new Promise((resolve, reject) => {
       this.requestQueue.push({ requestFn, resolve, reject });
@@ -61,7 +56,7 @@ class FinnhubService {
 
       // Reset counter every minute
       if (now - this.minuteResetTime > 60000) {
-        console.log(`🔄 Rate limit reset. Used ${this.requestsThisMinute}/60 calls last minute`);
+        console.log(` Rate limit reset. Used ${this.requestsThisMinute}/60 calls last minute`);
         this.requestsThisMinute = 0;
         this.minuteResetTime = now;
       }
@@ -69,7 +64,7 @@ class FinnhubService {
       // Check if we're at the limit
       if (this.requestsThisMinute >= this.maxRequestsPerMinute) {
         const waitTime = 60000 - (now - this.minuteResetTime);
-        console.warn(`⚠️  Rate limit reached (${this.requestsThisMinute}/${this.maxRequestsPerMinute}). Waiting ${Math.ceil(waitTime/1000)}s...`);
+        console.warn(`  Rate limit reached (${this.requestsThisMinute}/${this.maxRequestsPerMinute}). Waiting ${Math.ceil(waitTime/1000)}s...`);
         await this.sleep(waitTime);
         this.requestsThisMinute = 0;
         this.minuteResetTime = Date.now();
@@ -97,9 +92,7 @@ class FinnhubService {
     this.isProcessingQueue = false;
   }
 
-  /**
-   * ⭐ Enhanced scrapeImage with error handling
-   */
+
   async scrapeImage(url, title) {
     try {
       const response = await axios.get(url, {
@@ -133,9 +126,7 @@ class FinnhubService {
     }
   }
 
-  /**
-   * ⭐ Get Market News
-   */
+ 
   async getMarketNews(category = 'general', limit = 20) {
     try {
       const cacheKey = `market-${category}-${limit}`;
@@ -144,12 +135,12 @@ class FinnhubService {
       if (this.cache.has(cacheKey)) {
         const cached = this.cache.get(cacheKey);
         if (Date.now() - cached.timestamp < this.cacheTimeout) {
-          console.log(`✅ Cache hit: market-${category} (${cached.data.length} articles)`);
+          console.log(` Cache hit: market-${category} (${cached.data.length} articles)`);
           return cached.data;
         }
       }
 
-      console.log(`📰 Fetching Market News from Finnhub (${category})...`);
+      console.log(` Fetching Market News from Finnhub (${category})...`);
 
       // Use queue system
       const response = await this.queueRequest(async () => {
@@ -163,7 +154,7 @@ class FinnhubService {
       });
 
       if (!response.data || response.data.length === 0) {
-        console.warn(`⚠️  No ${category} news from Finnhub`);
+        console.warn(`  No ${category} news from Finnhub`);
         return [];
       }
 
@@ -183,7 +174,7 @@ class FinnhubService {
         symbols: item.related ? [item.related] : []
       }));
 
-      console.log(`✅ Fetched ${articles.length} ${category} articles`);
+      console.log(` Fetched ${articles.length} ${category} articles`);
 
       // Cache result
       this.cache.set(cacheKey, {
@@ -194,21 +185,18 @@ class FinnhubService {
       return articles;
 
     } catch (error) {
-      console.error(`❌ Finnhub Market News Error:`, error.message);
+      console.error(` Finnhub Market News Error:`, error.message);
       
       if (error.response?.status === 401) {
-        console.error('🔑 Invalid API Key!');
+        console.error(' Invalid API Key!');
       } else if (error.response?.status === 429) {
-        console.error('⚠️  Rate limit! (Should not happen with queue system)');
+        console.error('  Rate limit! (Should not happen with queue system)');
       }
       
       return [];
     }
   }
 
-  /**
-   * ⭐ Get Company News
-   */
   async getCompanyNews(symbol, fromDate = null, toDate = null) {
     try {
       const cacheKey = `company-${symbol}-${fromDate}-${toDate}`;
@@ -217,12 +205,12 @@ class FinnhubService {
       if (this.cache.has(cacheKey)) {
         const cached = this.cache.get(cacheKey);
         if (Date.now() - cached.timestamp < this.cacheTimeout) {
-          console.log(`✅ Cache hit: ${symbol} (${cached.data.length} articles)`);
+          console.log(` Cache hit: ${symbol} (${cached.data.length} articles)`);
           return cached.data;
         }
       }
 
-      console.log(`📰 API call: Company News for ${symbol}`);
+      console.log(` API call: Company News for ${symbol}`);
 
       // Default dates (last 7 days)
       if (!fromDate) {
@@ -249,7 +237,7 @@ class FinnhubService {
       });
 
       if (!response.data || response.data.length === 0) {
-        console.warn(`⚠️  No news for ${symbol}`);
+        console.warn(`  No news for ${symbol}`);
         return [];
       }
 
@@ -270,7 +258,7 @@ class FinnhubService {
         symbols: [symbol.toUpperCase()]
       }));
 
-      console.log(`✅ ${symbol}: ${articles.length} articles`);
+      console.log(` ${symbol}: ${articles.length} articles`);
 
       // Cache result
       this.cache.set(cacheKey, {
@@ -281,7 +269,7 @@ class FinnhubService {
       return articles;
 
     } catch (error) {
-      console.error(`❌ ${symbol}:`, error.response?.status || error.message);
+      console.error(` ${symbol}:`, error.response?.status || error.message);
       return [];
     }
   }
@@ -294,9 +282,9 @@ class FinnhubService {
   }
 
   async getMultiLanguageNews(query = null, limit = 25) {
-    console.log('📰 Fetching news from Finnhub...');
+    console.log(' Fetching news from Finnhub...');
     const articles = await this.getMarketNews('general', limit);
-    console.log(`✅ Total: ${articles.length} articles`);
+    console.log(` Total: ${articles.length} articles`);
     return articles;
   }
 

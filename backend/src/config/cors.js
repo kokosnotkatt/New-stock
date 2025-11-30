@@ -9,22 +9,20 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       'http://127.0.0.1:5174'
     ];
 
-console.log('🌐 CORS Allowed Origins:', allowedOrigins);
+console.log(' CORS Allowed Origins:', allowedOrigins);
 
 export const corsOptions = {
   origin: function (origin, callback) {
-    // ✅ Allow requests with no origin (Postman, curl, server-to-server)
     if (!origin) {
-      console.log('✅ CORS: No origin (Postman/curl)');
+      console.log(' CORS: No origin (Postman/curl)');
       return callback(null, true);
     }
     
-    // ✅ Check if origin is allowed
     if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('✅ CORS: Allowed origin:', origin);
+      console.log(' CORS: Allowed origin:', origin);
       callback(null, true);
     } else {
-      console.error('❌ CORS: Blocked origin:', origin);
+      console.error(' CORS: Blocked origin:', origin);
       callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
     }
   },
