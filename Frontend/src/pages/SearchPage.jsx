@@ -1,13 +1,13 @@
-// pages/SearchPage.jsx - Full-Featured Search Page
-import { useState, useEffect, useMemo } from 'react';
+// pages/SearchPage.jsx - FIXED: Race Condition + Language Change
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Filter, X, Clock, TrendingUp, Sparkles } from 'lucide-react';
+import { Search, X, Clock, TrendingUp, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useDebounce } from '../hooks/useDebounce';
 import NewsCard from '../component/News/NewsCard';
 import TrendingSymbols from '../component/News/TrendingSymbols';
-import { LoadingSpinner, SkeletonCard } from '../component/common/Loading';
+import { SkeletonCard } from '../component/common/Loading';
 import apiService from '../services/apiService';
 
 const SearchPage = () => {
@@ -21,116 +21,143 @@ const SearchPage = () => {
   const [newsArticles, setNewsArticles] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Filter states
   const [selectedSymbol, setSelectedSymbol] = useState(searchParams.get('symbol') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'all');
-  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'recent');
-  const [showFilters, setShowFilters] = useState(false);
-
+  
   // Debounce search query
   const debouncedSearchQuery = useDebounce(localSearchQuery, 500);
 
+  const abortControllerRef = useRef(null);
+  const prevLanguageRef = useRef(language);
+  const originalArticlesRef = useRef([]);
+
   // Categories
   const categories = [
-    { value: 'all', label: t('search.categories.all') || 'All' },
-    { value: 'stocks', label: t('search.categories.stocks') || 'Stocks' },
-    { value: 'ai', label: t('search.categories.ai') || 'AI Technology' },
-    { value: 'crypto', label: t('search.categories.crypto') || 'Cryptocurrency' },
-    { value: 'business', label: t('search.categories.business') || 'Business' },
-    { value: 'technology', label: t('search.categories.technology') || 'Technology' }
+    { value: 'all', label: t('search.categories.all') || 'ทั้งหมด' },
+    { value: 'stocks', label: t('search.categories.stocks') || 'หุ้น' },
+    { value: 'ai', label: t('search.categories.ai') || 'AI & Tech' },
+    { value: 'crypto', label: t('search.categories.crypto') || 'คริปโต' },
+    { value: 'business', label: t('search.categories.business') || 'ธุรกิจ' },
   ];
 
-  // Sort options
-  const sortOptions = [
-    { value: 'recent', label: t('search.sort.recent') || 'Most Recent' },
-    { value: 'oldest', label: t('search.sort.oldest') || 'Oldest First' },
-    { value: 'relevant', label: t('search.sort.relevant') || 'Most Relevant' }
-  ];
-
-  // Fetch news on mount or when filters change
+  // Fetch news when category changes
   useEffect(() => {
     fetchNews();
-  }, [language, selectedCategory]);
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [selectedCategory]);
 
-  // Update URL params when filters change
+  // Translate when language changes
+  useEffect(() => {
+    if (prevLanguageRef.current !== language && originalArticlesRef.current.length > 0) {
+      console.log(`Language changed: ${prevLanguageRef.current} -> ${language}`);
+      prevLanguageRef.current = language;
+      translateArticles();
+    }
+  }, [language]);
+
+  // Update URL params
   useEffect(() => {
     const params = {};
     if (debouncedSearchQuery) params.q = debouncedSearchQuery;
     if (selectedSymbol) params.symbol = selectedSymbol;
     if (selectedCategory !== 'all') params.category = selectedCategory;
-    if (sortBy !== 'recent') params.sort = sortBy;
-    
-    setSearchParams(params);
-  }, [debouncedSearchQuery, selectedSymbol, selectedCategory, sortBy, setSearchParams]);
 
-  // Filter and sort articles
+    setSearchParams(params);
+  }, [debouncedSearchQuery, selectedSymbol, selectedCategory, setSearchParams]);
+
+  // Filter articles
   useEffect(() => {
     let filtered = [...newsArticles];
 
-    // Filter by search query
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase();
-      filtered = filtered.filter(article => 
+      filtered = filtered.filter(article =>
         article.title?.toLowerCase().includes(query) ||
         article.summary?.toLowerCase().includes(query) ||
         article.source?.toLowerCase().includes(query)
       );
     }
 
-    // Filter by symbol
     if (selectedSymbol) {
-      filtered = filtered.filter(article => 
+      filtered = filtered.filter(article =>
         article.symbols?.some(s => s.toUpperCase() === selectedSymbol.toUpperCase())
       );
     }
 
-    // Sort articles
-    switch (sortBy) {
-      case 'recent':
-        filtered.sort((a, b) => b.datetime - a.datetime);
-        break;
-      case 'oldest':
-        filtered.sort((a, b) => a.datetime - b.datetime);
-        break;
-      case 'relevant':
-        // Simple relevance: articles with images and symbols rank higher
-        filtered.sort((a, b) => {
-          const scoreA = (a.image ? 1 : 0) + (a.symbols?.length || 0);
-          const scoreB = (b.image ? 1 : 0) + (b.symbols?.length || 0);
-          return scoreB - scoreA;
-        });
-        break;
-      default:
-        break;
-    }
+    filtered.sort((a, b) => b.datetime - a.datetime);
 
     setFilteredArticles(filtered);
-  }, [newsArticles, debouncedSearchQuery, selectedSymbol, sortBy]);
+  }, [newsArticles, debouncedSearchQuery, selectedSymbol]);
 
   const fetchNews = async () => {
     try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       setLoading(true);
       setError(null);
 
       const data = await apiService.fetchNews({
         limit: 50,
         category: selectedCategory === 'all' ? 'stocks' : selectedCategory,
-        language: language
+        language: language,
+        signal
       });
 
+      if (signal.aborted) {
+        console.log('Request was aborted');
+        return;
+      }
+
       if (data.success) {
+        originalArticlesRef.current = data.data;
         setNewsArticles(data.data);
-        console.log('✅ Loaded news for search:', data.data.length);
+        console.log(`Loaded ${data.data.length} articles (${language})`);
       } else {
         setError(data.message || 'Failed to fetch news');
       }
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('Request aborted');
+        return;
+      }
+      
       setError(err.message || 'Error connecting to server');
-      console.error('❌ Error fetching news:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const translateArticles = async () => {
+    try {
+      setTranslating(true);
+      setError(null);
+
+      console.log(`Translating ${originalArticlesRef.current.length} articles to ${language}...`);
+
+      const translated = await apiService.translateNews(originalArticlesRef.current, language);
+      setNewsArticles(translated);
+      
+      console.log(`Translated ${translated.length} articles to ${language}`);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setNewsArticles(originalArticlesRef.current);
+      setError('Translation failed, showing original content');
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -160,241 +187,198 @@ const SearchPage = () => {
     setLocalSearchQuery('');
     setSelectedSymbol('');
     setSelectedCategory('all');
-    setSortBy('recent');
     setSearchQuery('');
   };
 
-  const hasActiveFilters = localSearchQuery || selectedSymbol || selectedCategory !== 'all' || sortBy !== 'recent';
-
   return (
-    <div className="min-h-screen bg-gray-200">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Search Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Search className="w-6 h-6 text-green-600" />
-            <h1 className="text-2xl font-bold text-gray-900">
-              {t('search.title') || 'Search News'}
-            </h1>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative mb-4">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+    <div className="min-h-screen bg-gray-50/50">
+      
+      <div className="bg-white border-b border-gray-100 pt-10 pb-8 px-4 mb-8 shadow-sm">
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+            {t('search.title')}
+          </h1>
+          
+          <div className="relative max-w-2xl mx-auto group">
+            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+              <Search className="h-6 w-6 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+            </div>
             <input
               type="text"
               value={localSearchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t('search.placeholder') || 'Search by keyword, company, or symbol...'}
-              className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+              placeholder={t('search.placeholder')}
+              className="block w-full pl-14 pr-12 py-4 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-green-500 rounded-2xl text-lg shadow-sm hover:shadow-md focus:shadow-xl transition-all duration-300 outline-none placeholder:text-gray-400"
             />
             {localSearchQuery && (
               <button
                 onClick={() => handleSearch('')}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
               >
                 <X className="w-5 h-5" />
               </button>
             )}
           </div>
 
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Symbol Filter */}
-            {selectedSymbol && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                <TrendingUp className="w-4 h-4" />
-                {selectedSymbol}
-                <button
-                  onClick={() => setSelectedSymbol('')}
-                  className="ml-1 hover:bg-green-200 rounded-full p-0.5 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {categories.map(cat => (
-                <option key={cat.value} value={cat.value}>{cat.label}</option>
-              ))}
-            </select>
-
-            {/* Sort Filter */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {sortOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-
-            {/* Mobile Filters Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-              {t('search.filters') || 'Filters'}
-            </button>
-
-            {/* Clear Filters */}
-            {hasActiveFilters && (
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
+            {categories.map(cat => (
               <button
-                onClick={clearAllFilters}
-                className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                key={cat.value}
+                onClick={() => setSelectedCategory(cat.value)}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                  selectedCategory === cat.value
+                    ? 'bg-green-600 text-white shadow-lg shadow-green-200 scale-105'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-green-200 hover:text-green-700'
+                }`}
               >
-                <X className="w-4 h-4" />
-                {t('search.clearFilters') || 'Clear all'}
+                {cat.label}
               </button>
-            )}
+            ))}
           </div>
 
-          {/* Active Filters Summary */}
-          {hasActiveFilters && (
-            <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600">
-              {t('search.showing') || 'Showing'} <span className="font-semibold text-gray-900">{filteredArticles.length}</span> {t('search.results') || 'results'}
-              {localSearchQuery && <span> {t('search.for') || 'for'} "<span className="font-semibold text-gray-900">{localSearchQuery}</span>"</span>}
+          {selectedSymbol && (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium border border-green-100 animate-fade-in">
+              <TrendingUp className="w-4 h-4" />
+              {t('search.resultsFor')} {selectedSymbol}
+              <button
+                onClick={() => setSelectedSymbol('')}
+                className="ml-1 hover:bg-green-200 rounded-full p-0.5 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* News Results */}
-          <div className="lg:col-span-2 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-lg font-semibold text-gray-800">
+                {localSearchQuery || selectedSymbol 
+                  ? `${t('search.results')} (${filteredArticles.length})`
+                  : t('search.latestNews')
+                }
+              </h2>
+            </div>
+
             {loading ? (
               <div className="space-y-4">
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
                     <SkeletonCard />
                   </div>
                 ))}
               </div>
-            ) : error ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <X className="w-8 h-8 text-red-600" />
+            ) : translating ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">
+                  {language === 'th' ? 'กำลังแปลข่าว...' : 'Translating news...'}
+                </p>
+              </div>
+            ) : error && filteredArticles.length === 0 ? (
+              <div className="bg-white border border-red-100 rounded-xl p-8 text-center shadow-sm">
+                <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <X className="w-6 h-6 text-red-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {t('search.error') || 'Error loading news'}
-                </h3>
-                <p className="text-red-700 mb-4">{error}</p>
+                <h3 className="text-gray-900 font-medium mb-1">{t('common.error')}</h3>
+                <p className="text-gray-500 text-sm mb-4">{error}</p>
                 <button
                   onClick={fetchNews}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="text-sm font-medium text-red-600 hover:text-red-700 underline"
                 >
-                  {t('common.retry') || 'Retry'}
+                  {t('common.retry')}
                 </button>
               </div>
             ) : filteredArticles.length > 0 ? (
-              filteredArticles.map((article) => (
-                <div
-                  key={article.id}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <NewsCard
-                    article={article}
-                    onClick={handleNewsClick}
-                    onSymbolClick={handleSymbolClick}
-                  />
+              <>
+                {error && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                    {error}
+                  </div>
+                )}
+                <div className="space-y-4">
+                  {filteredArticles.map((article, index) => (
+                    <div key={article.id || `news-${index}-${article.datetime}`}
+                      className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
+                    >
+                      <NewsCard
+                        article={article}
+                        onClick={handleNewsClick}
+                        onSymbolClick={handleSymbolClick}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))
+              </>
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Search className="w-10 h-10 text-gray-400" />
+              <div className="bg-white rounded-xl border border-gray-100 p-12 text-center shadow-sm">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {t('search.noResults') || 'No results found'}
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {t('search.noResults')}
                 </h3>
-                <p className="text-gray-600 mb-6">
-                  {localSearchQuery 
-                    ? (t('search.noResultsFor') || `No news found for "${localSearchQuery}"`)
-                    : (t('search.trySearching') || 'Try searching for a company or keyword')
-                  }
+                <p className="text-gray-500 mb-6 max-w-xs mx-auto text-sm">
+                  {t('search.noResultsDesc')}
                 </p>
-                {hasActiveFilters && (
+                {(localSearchQuery || selectedSymbol || selectedCategory !== 'all') && (
                   <button
                     onClick={clearAllFilters}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-6 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    {t('search.clearFilters') || 'Clear filters'}
+                    {t('search.clear')}
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Recent Searches */}
+            
             {recentSearches.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-gray-600" />
-                    <h3 className="font-semibold text-gray-900">
-                      {t('search.recentSearches') || 'Recent Searches'}
-                    </h3>
-                  </div>
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    {t('search.recentSearches')}
+                  </h3>
                   <button
                     onClick={clearRecentSearches}
-                    className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors"
                   >
-                    {t('search.clear') || 'Clear'}
+                    {t('search.clear')}
                   </button>
                 </div>
-                <div className="space-y-2">
+                <div>
                   {recentSearches.map((search, index) => (
                     <button
                       key={index}
                       onClick={() => handleRecentSearchClick(search)}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 group"
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between group border-b border-gray-50 last:border-0"
                     >
-                      <Search className="w-4 h-4 text-gray-400 group-hover:text-green-600 transition-colors" />
-                      <span className="text-sm text-gray-700 group-hover:text-green-600 transition-colors truncate">
+                      <span className="text-sm text-gray-600 group-hover:text-green-700 transition-colors truncate">
                         {search}
                       </span>
+                      <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-green-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Trending Symbols */}
-            <TrendingSymbols onSymbolClick={handleSymbolClick} limit={8} />
-
-            {/* Quick Tips */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-5 h-5 text-green-600" />
-                <h3 className="font-semibold text-gray-900">
-                  {t('search.tips') || 'Search Tips'}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+                <h3 className="font-semibold text-gray-900 text-sm">
+                  {t('search.trendingTopics')}
                 </h3>
               </div>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-0.5">•</span>
-                  <span>{t('search.tip1') || 'Use company names or stock symbols'}</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-0.5">•</span>
-                  <span>{t('search.tip2') || 'Filter by category for better results'}</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-0.5">•</span>
-                  <span>{t('search.tip3') || 'Click symbols to see related news'}</span>
-                </li>
-              </ul>
-            </div>
+              <TrendingSymbols onSymbolClick={handleSymbolClick} limit={8} />
+            </div>     
           </div>
         </div>
       </div>

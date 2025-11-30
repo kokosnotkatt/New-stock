@@ -1,4 +1,3 @@
-// context/LanguageContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
 
 const LanguageContext = createContext();
@@ -8,7 +7,8 @@ const translations = {
     nav: {
       home: 'Home',
       search: 'Search',
-      watchlist: 'Watchlist'
+      watchlist: 'Watchlist',
+      settings: 'Settings' 
     },
     header: {
       signIn: 'Sign In',
@@ -31,10 +31,13 @@ const translations = {
       linkIpoCalendar: 'IPO Calendar'
     },
     search: {
-      placeholder: 'Search stocks, news, ',
-      placeholder2: 'or search for topics of interest',
+      title: 'Search News & Investing Trends',
+      placeholder: 'Search stocks, companies, or topics...',
+      placeholder2: '', // Unified into placeholder
       filters: 'Filters',
+      results: 'Results',
       resultsFor: 'results for',
+      latestNews: 'Latest Updates', // Added new key
       noResults: 'No results found',
       noResultsDesc: 'Try adjusting your search terms or filters',
       clearSearch: 'Clear search',
@@ -71,6 +74,30 @@ const translations = {
         oldest: 'Oldest First',
         relevant: 'Most Relevant'
       }
+    },
+    // --- เพิ่มส่วน Settings (English) ---
+    settings: {
+        pageTitle: 'Account Settings',
+        pageSubtitle: 'Manage your Telegram connection and Watchlist data',
+        connectedSuccess: 'Connected Successfully',
+        syncAuto: 'Data Sync Automatically',
+        connectTitle: 'Connect Telegram for full experience',
+        connectBtn: 'Connect Telegram',
+        generating: 'Generating...',
+        linkCode: 'Link Code',
+        expiresIn: 'Expires in {time}',
+        howTo: 'How to use:',
+        step1: 'Open Telegram App',
+        step2: 'Search for our Stock News Bot and press /start',
+        step3: 'Type',
+        whyConnect: 'Why Connect?',
+        benefit1Title: 'Cross-device Sync',
+        benefit1Desc: 'View your watchlist on both computer and mobile. Data matches everywhere.',
+        benefit2Title: 'No Data Loss',
+        benefit2Desc: 'Even if you clear your browser or change devices, your watchlist remains.',
+        benefit3Title: 'Easy Management',
+        benefit3Desc: 'Add/Remove stocks via Telegram Chat instantly.',
+        privacy: 'We prioritize privacy. Your usage data is linked only to your Telegram account. No public disclosure.'
     },
     newsCard: {
       match: 'match'
@@ -137,10 +164,11 @@ const translations = {
     }
   },
   th: {
-    nav: {
-      home: 'หน้าแรก',
+      nav: {
+      home: 'หน้าหลัก',
       search: 'ค้นหา',
-      watchlist: 'รายการติดตาม'
+      watchlist: 'ข่าวหุ้นติดตาม',
+      settings: 'การตั้งค่า' 
     },
     header: {
       signIn: 'เข้าสู่ระบบ',
@@ -163,17 +191,20 @@ const translations = {
       linkIpoCalendar: 'ปฏิทิน IPO'
     },
     search: {
-      placeholder: 'ค้นหาหุ้น ข่าว ',
-      placeholder2: 'หรือค้นหาหัวข้อที่น่าสนใจ',
+      title: 'ค้นหาข่าวและเทรนด์การลงทุน',
+      placeholder: 'ค้นหาหุ้น, บริษัท หรือหัวข้อที่สนใจ...',
+      placeholder2: '',
       filters: 'ตัวกรอง',
+      results: 'ผลลัพธ์',
       resultsFor: 'ผลลัพธ์สำหรับ',
+      latestNews: 'อัปเดตข่าวสารล่าสุด', // Added new key
       noResults: 'ไม่พบผลลัพธ์',
       noResultsDesc: 'ลองปรับคำค้นหาหรือตัวกรองของคุณ',
       clearSearch: 'ล้างการค้นหา',
       loadMore: 'โหลดเพิ่ม',
       loading: 'กำลังโหลด...',
       searching: 'กำลังค้นหา...',
-      recentSearches: 'การค้นหาล่าสุด',
+      recentSearches: 'ค้นหาล่าสุด',
       trendingTopics: 'หัวข้อยอดนิยม',
       clear: 'ล้าง',
       catAll: 'ทุกหมวดหมู่',
@@ -194,7 +225,7 @@ const translations = {
         all: 'ทั้งหมด',
         stocks: 'หุ้น',
         ai: 'เทคโนโลยี AI',
-        crypto: 'คริปโตเคอเรนซี',
+        crypto: 'คริปโต',
         business: 'ธุรกิจ',
         technology: 'เทคโนโลยี'
       },
@@ -203,6 +234,30 @@ const translations = {
         oldest: 'เก่าสุด',
         relevant: 'เกี่ยวข้องที่สุด'
       }
+    },
+    // --- เพิ่มส่วน Settings (Thai) ---
+    settings: {
+        pageTitle: 'การตั้งค่าบัญชี',
+        pageSubtitle: 'จัดการการเชื่อมต่อ Telegram และข้อมูล Watchlist ของคุณ',
+        connectedSuccess: 'เชื่อมต่อสำเร็จ',
+        syncAuto: 'ข้อมูล Sync อัตโนมัติ',
+        connectTitle: 'เชื่อมต่อ Telegram เพื่อเริ่มใช้งานเต็มรูปแบบ',
+        connectBtn: 'เชื่อมต่อ Telegram',
+        generating: 'กำลังสร้าง...',
+        linkCode: 'Link Code',
+        expiresIn: 'หมดอายุใน {time}',
+        howTo: 'วิธีใช้งาน:',
+        step1: 'เปิดแอป Telegram',
+        step2: 'ค้นหา Stock News Bot ของคุณและกด /start',
+        step3: 'พิมพ์',
+        whyConnect: 'ทำไมต้องเชื่อมต่อ?',
+        benefit1Title: 'Sync ข้ามอุปกรณ์',
+        benefit1Desc: 'เปิดดูหุ้นที่คุณเฝ้าดูได้ทั้งบนคอมพิวเตอร์และมือถือ ข้อมูลตรงกันทุกที่',
+        benefit2Title: 'ข้อมูลไม่สูญหาย',
+        benefit2Desc: 'แม้จะล้างเครื่องหรือเปลี่ยน Browser ข้อมูล Watchlist ก็ยังอยู่ครบ',
+        benefit3Title: 'จัดการง่าย',
+        benefit3Desc: 'เพิ่ม/ลบ หุ้นผ่าน Telegram Chat ได้เลย สะดวกรวดเร็ว',
+        privacy: 'เราให้ความสำคัญกับความเป็นส่วนตัว ข้อมูลการใช้งานของคุณจะถูกผูกกับบัญชี Telegram ของคุณเท่านั้น ไม่มีการเปิดเผยข้อมูลสู่สาธารณะ'
     },
     newsCard: {
       match: 'ตรงกัน'

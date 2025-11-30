@@ -1,41 +1,17 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+// context/AppContext.jsx - Simplified (ลบ watchlist ออก)
+import { createContext, useContext, useState } from 'react';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('Home');
-  const [watchlist, setWatchlist] = useState([
-    { symbol: 'AAPL', hasAlert: true, hasRedDot: false },
-    { symbol: 'TSLA', hasAlert: true, hasRedDot: true }
-  ]);
+  
   const [recentSearches, setRecentSearches] = useState([
     'Apple earnings', 
     'Tesla stock', 
     'Fed rate'
   ]);
-
-  const addToWatchlist = (symbol) => {
-    if (!watchlist.find(item => item.symbol === symbol)) {
-      setWatchlist(prev => [...prev, { 
-        symbol, 
-        hasAlert: false, 
-        hasRedDot: false 
-      }]);
-    }
-  };
-
-  const removeFromWatchlist = (symbol) => {
-    setWatchlist(prev => prev.filter(item => item.symbol !== symbol));
-  };
-
-  const toggleAlert = (symbol) => {
-    setWatchlist(prev => prev.map(item =>
-      item.symbol === symbol 
-        ? { ...item, hasAlert: !item.hasAlert }
-        : item
-    ));
-  };
 
   const addRecentSearch = (query) => {
     if (query.trim()) {
@@ -56,10 +32,6 @@ export const AppProvider = ({ children }) => {
       setSearchQuery,
       activeTab,
       setActiveTab,
-      watchlist,
-      addToWatchlist,
-      removeFromWatchlist,
-      toggleAlert,
       recentSearches,
       addRecentSearch,
       clearRecentSearches

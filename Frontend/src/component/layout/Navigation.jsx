@@ -9,13 +9,12 @@ const Navigation = () => {
   const { setActiveTab } = useApp();
   const { t } = useLanguage();
 
-  const navigationItems = [
-    { name: t('nav.home'), path: '/', tab: 'Home' },
-    { name: t('nav.search'), path: '/search', tab: 'Search' },
-    { name: t('nav.watchlist'), path: '/watchlist', tab: 'Watchlist' }
-  ];
+ const navigationItems = [
+  { name: t('nav.home'), path: '/', tab: 'Home' },
+  { name: t('nav.search'), path: '/search', tab: 'Search' },
+  { name: t('nav.watchlist'), path: '/watchlist', tab: 'Watchlist' },
+];
 
-  // ✅ Sync Context activeTab กับ current route
   useEffect(() => {
     const currentItem = navigationItems.find(item => {
       if (item.path === '/' && location.pathname === '/') return true;

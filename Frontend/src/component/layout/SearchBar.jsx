@@ -24,7 +24,7 @@ const SearchBar = ({ className = "" }) => {
     <div className={`relative ${className}`}>
       <input 
         type="text" 
-        placeholder={t('search.placeholder')} // 3. แก้ไข
+        placeholder={t('search.placeholder')} 
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyPress={handleKeyPress}

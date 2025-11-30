@@ -115,7 +115,20 @@ const AIAnalysisModal = ({ isOpen, onClose, analysis, loading, error, articleTit
               <p className="text-red-600 font-medium mb-2">
                 {language === 'th' ? 'เกิดข้อผิดพลาด' : 'Analysis Failed'}
               </p>
-              <p className="text-gray-600 text-sm text-center">{error}</p>
+              <p className="text-gray-600 text-sm text-center max-w-sm">
+                {error.includes('busy') || error.includes('moment')
+                  ? (language === 'th' 
+                      ? 'ระบบกำลังประมวลผลคำขอจำนวนมาก กรุณารอสักครู่แล้วลองใหม่อีกครั้ง' 
+                      : 'AI service is processing many requests. Please wait a moment and try again.')
+                  : error
+                }
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                {language === 'th' ? 'ปิด' : 'Close'}
+              </button>
             </div>
           )}
 

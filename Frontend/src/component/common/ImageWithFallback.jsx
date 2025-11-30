@@ -1,12 +1,30 @@
-// component/common/ImageWithFallback.jsx - (Cleaned Up Version)
 import { useState, useEffect, useRef } from 'react';
-import { useLanguage } from '../../context/LanguageContext'; // 1. (เพิ่ม) Import
+import { useLanguage } from '../../context/LanguageContext';
+
+const FALLBACK_IMAGES = {
+  'Stock Analysis': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=400&fit=crop',
+  'AI Technology': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=400&fit=crop',
+  'Market Trends': 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&h=400&fit=crop',
+  'Cryptocurrency': 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=800&h=400&fit=crop',
+  'Tech Stocks': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=400&fit=crop',
+  'Company News': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=400&fit=crop',
+  'Business': 'https://images.unsplash.com/photo-1664575602554-2087b04935a5?w=800&h=400&fit=crop',
+  'Breaking News': 'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=800&h=400&fit=crop',
+  'Market News': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop',
+  'Technology': 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=400&fit=crop',
+  'Forex': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=400&fit=crop',
+  'Mergers & Acquisitions': 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=400&fit=crop',
+  'Innovation': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop',
+  'Emerging Tech': 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&h=400&fit=crop',
+};
+
+const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop';
 
 const ImageWithFallback = ({ 
   src, 
   alt, 
   className = "", 
-  // fallbackGradient, // (ลบ Prop นี้)
+  category = null, 
   lazy = true,
   threshold = 0.1,
   rootMargin = "50px",
@@ -20,7 +38,14 @@ const ImageWithFallback = ({
   const [isInView, setIsInView] = useState(!lazy || priority);
   const imgRef = useRef(null);
   const observerRef = useRef(null);
-  const { t } = useLanguage(); // 2. (เพิ่ม) เรียกใช้ t()
+  const { t } = useLanguage();
+
+  const getFallbackImage = () => {
+    if (category && FALLBACK_IMAGES[category]) {
+      return FALLBACK_IMAGES[category];
+    }
+    return DEFAULT_FALLBACK;
+  };
 
   useEffect(() => {
     if (!lazy || priority) {
@@ -54,37 +79,35 @@ const ImageWithFallback = ({
   }, [src, lazy, priority, threshold, rootMargin]);
 
   const handleError = (e) => {
-    console.error('🖼️ Image load error:', { src, alt, error: e.type });
-    setHasError(true);
-    setIsLoading(false);
+    console.error(' Image load error:', { src, alt, error: e.type });
     
-    if (src && src.includes('.webp')) {
-      const fallbackSrc = src.replace('.webp', '.jpg');
-      console.log('🔄 Trying fallback format:', fallbackSrc);
-      setImgSrc(fallbackSrc);
+    // ✅ ลอง fallback image แทน gradient
+    const fallbackImg = getFallbackImage();
+    if (imgSrc !== fallbackImg) {
+      console.log(' Trying fallback image:', fallbackImg);
+      setImgSrc(fallbackImg);
       setHasError(false);
-      setIsLoading(true);
+    } else {
+      // ถ้า fallback ก็โหลดไม่ได้ ให้แสดง placeholder
+      setHasError(true);
+      setIsLoading(false);
     }
   };
 
   const handleLoad = () => {
-    console.log('✅ Image loaded:', src);
+    console.log(' Image loaded:', imgSrc);
     setIsLoading(false);
   };
 
-  // 3. (แก้ไข) Render fallback if error
   if (hasError) {
-    console.warn('⚠️ Showing fallback gradient for:', alt);
     return (
       <div 
         ref={imgRef}
-        // เปลี่ยนจาก Gradient เป็น bg-gray-100
         className={`bg-gray-100 flex items-center justify-center ${className}`}
         role="img"
-        aria-label={alt || t('imageFallback.placeholder')} // (เพิ่ม t())
+        aria-label={alt || t('imageFallback.placeholder')}
       >
         <svg 
-          // เปลี่ยนสีไอคอนเป็น text-gray-400
           className="w-10 h-10 text-gray-400 opacity-75" 
           fill="none" 
           stroke="currentColor" 
@@ -101,29 +124,27 @@ const ImageWithFallback = ({
     );
   }
 
-  // 4. (เหมือนเดิม) Render placeholder before image loads
   if (!isInView || !imgSrc) {
     return (
       <div 
         ref={imgRef}
         className={`animate-pulse bg-gray-200 ${className}`}
         role="img"
-        aria-label={t('imageFallback.loading', { alt: alt || '' })} // (เพิ่ม t())
+        aria-label={t('imageFallback.loading', { alt: alt || '' })}
       />
     );
   }
 
-  // 5. (เหมือนเดิม) Render รูปภาพ
   return (
     <>
       {isLoading && (
         <div className={`animate-pulse bg-gray-200 ${className} absolute`} />
       )}
       <picture>
-        {src && !src.includes('.svg') && (
+        {imgSrc && !imgSrc.includes('.svg') && (
           <source 
             type="image/webp" 
-            srcSet={srcSet || src.replace(/\.(jpg|jpeg|png)$/i, '.webp')}
+            srcSet={srcSet || imgSrc.replace(/\.(jpg|jpeg|png)$/i, '.webp')}
             sizes={sizes}
           />
         )}

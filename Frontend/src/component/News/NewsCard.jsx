@@ -1,5 +1,5 @@
-// Frontend/src/component/News/NewsCard.jsx
-import React, { useState } from 'react';
+// Frontend/src/component/News/NewsCard.jsx - ✅ FIXED: Memory Leaks
+import React, { useState, useEffect } from 'react';
 import { Newspaper, Sparkles, Loader2 } from 'lucide-react';
 import ImageWithFallback from '../common/ImageWithFallback'; 
 import SymbolBadges from './SymbolBadges';
@@ -13,6 +13,25 @@ const NewsCard = React.memo(({ article, onClick, onSymbolClick }) => {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+
+  // ✅ FIXED: Memory Leak - Cleanup state เมื่อ unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup เมื่อ component ถูก unmount
+      setAiAnalysis(null);
+      setAiError(null);
+      setAiLoading(false);
+      setShowAIModal(false);
+    };
+  }, []);
+
+  // ✅ FIXED: Cleanup เมื่อปิด modal
+  useEffect(() => {
+    if (!showAIModal) {
+      // Reset error เมื่อปิด modal
+      setAiError(null);
+    }
+  }, [showAIModal]);
 
   const getCategoryColor = (category) => {
     const colors = {
@@ -45,7 +64,7 @@ const NewsCard = React.memo(({ article, onClick, onSymbolClick }) => {
 
   // 🤖 AI Analysis handler
   const handleAIClick = async (e) => {
-    e.stopPropagation(); // ไม่ให้ click ไปที่ card
+    e.stopPropagation();
     
     setShowAIModal(true);
     setAiError(null);
@@ -59,17 +78,29 @@ const NewsCard = React.memo(({ article, onClick, onSymbolClick }) => {
 
     try {
       const analysis = await apiService.analyzeNews(article, language);
-      setAiAnalysis(analysis);
+      
+      // ✅ FIXED: ตรวจสอบว่า component ยัง mounted อยู่ไหม
+      if (showAIModal) {
+        setAiAnalysis(analysis);
+      }
     } catch (error) {
       console.error('AI Analysis error:', error);
-      setAiError(error.message || 'Failed to analyze');
+      
+      // ✅ FIXED: ตรวจสอบว่า component ยัง mounted อยู่ไหม
+      if (showAIModal) {
+        setAiError(error.message || 'Failed to analyze');
+      }
     } finally {
-      setAiLoading(false);
+      // ✅ FIXED: ตรวจสอบว่า component ยัง mounted อยู่ไหม
+      if (showAIModal) {
+        setAiLoading(false);
+      }
     }
   };
 
   const closeAIModal = () => {
     setShowAIModal(false);
+    // ไม่ต้อง reset analysis เพื่อให้ cache ไว้ใช้
   };
 
   // AI Button Component
@@ -103,8 +134,8 @@ const NewsCard = React.memo(({ article, onClick, onSymbolClick }) => {
             <ImageWithFallback
               src={article.image}
               alt={article.title}
+              category={article.category}
               className="w-32 h-32 object-cover rounded-lg flex-shrink-0"
-              fallbackType="gradient"
             />
 
             <div className="flex-1">

@@ -1,4 +1,4 @@
-// Frontend/src/component/News/NewsList.jsx
+// Frontend/src/component/News/NewsList.jsx - ✅ FIXED: Translation Performance
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import NewsCard from './NewsCard';
@@ -7,15 +7,15 @@ import { useLanguage } from '../../context/LanguageContext';
 
 const NewsList = ({ onNewsClick, onSymbolClick }) => {
   const [newsArticles, setNewsArticles] = useState([]);
-  const [originalArticles, setOriginalArticles] = useState([]); // เก็บข่าวต้นฉบับ
+  const [originalArticles, setOriginalArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [translating, setTranslating] = useState(false);
+  const [translating, setTranslating] = useState(false); // ✅ แยก state
   const [error, setError] = useState(null);
   const { language, t } = useLanguage();
   const prevLanguageRef = useRef(language);
   const isFirstLoad = useRef(true);
 
-  // โหลดข่าวครั้งแรก
+  // ✅ โหลดข่าวครั้งแรกเท่านั้น
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
@@ -23,38 +23,31 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
     }
   }, []);
 
-  // เมื่อเปลี่ยนภาษา ให้แปลข่าว
+  // ✅ เมื่อเปลี่ยนภาษา -> แปลข่าวที่มีอยู่ (ไม่ fetch ใหม่)
   useEffect(() => {
-    if (prevLanguageRef.current !== language && originalArticles.length > 0) {
+    if (prevLanguageRef.current !== language && !isFirstLoad.current && originalArticles.length > 0) {
       console.log(`🌐 Language changed: ${prevLanguageRef.current} → ${language}`);
       prevLanguageRef.current = language;
-      translateNews();
+      translateArticles();
     }
   }, [language]);
 
-  // ดึงข่าวจาก API
+  // ✅ ฟังก์ชันดึงข่าว (เรียกครั้งเดียวตอนโหลด)
   const fetchNews = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const data = await apiService.fetchNews({
-        limit: 20,
+        limit: 10,
         category: 'stocks',
-        language: 'en' // ดึงข่าวภาษาอังกฤษเสมอ
+        language: language // ใช้ภาษาปัจจุบัน
       });
 
       if (data.success) {
-        setOriginalArticles(data.data); // เก็บต้นฉบับ
-        
-        // ถ้าภาษาปัจจุบันเป็นไทย ให้แปลเลย
-        if (language === 'th') {
-          await translateNewsData(data.data);
-        } else {
-          setNewsArticles(data.data);
-        }
-        
-        console.log(`✅ Loaded ${data.data.length} news articles`);
+        setOriginalArticles(data.data);
+        setNewsArticles(data.data);
+        console.log(`✅ Loaded ${data.data.length} news articles (${language})`);
       } else {
         setError(data.message || 'Failed to fetch news');
       }
@@ -66,33 +59,23 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
     }
   };
 
-  // แปลข่าว
-  const translateNews = async () => {
-    if (originalArticles.length === 0) return;
-
-    // ถ้าเป็นภาษาอังกฤษ ใช้ต้นฉบับ
-    if (language === 'en') {
-      setNewsArticles(originalArticles);
-      return;
-    }
-
-    await translateNewsData(originalArticles);
-  };
-
-  // แปลข่าวจริงๆ
-  const translateNewsData = async (articles) => {
+  // ✅ ฟังก์ชันแปลข่าว (ใช้ข่าวที่มีอยู่)
+  const translateArticles = async () => {
     try {
       setTranslating(true);
-      console.log(`🌐 Translating ${articles.length} articles to ${language}...`);
+      setError(null);
 
-      const translatedArticles = await apiService.translateNews(articles, language);
-      setNewsArticles(translatedArticles);
+      console.log(`🔄 Translating ${originalArticles.length} articles to ${language}...`);
+
+      const translated = await apiService.translateNews(originalArticles, language);
+      setNewsArticles(translated);
       
-      console.log(`✅ Translation complete`);
+      console.log(`✅ Translated ${translated.length} articles to ${language}`);
     } catch (err) {
       console.error('❌ Translation error:', err);
-      // ถ้าแปลไม่ได้ ใช้ต้นฉบับ
+      // ถ้าแปลไม่ได้ ให้ใช้ข่าวต้นฉบับ
       setNewsArticles(originalArticles);
+      setError('Translation failed, showing original content');
     } finally {
       setTranslating(false);
     }
@@ -117,7 +100,7 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
     fetchNews();
   };
 
-  // Loading state
+  // ✅ Loading state - แสดงตอนโหลดข่าวครั้งแรก
   if (loading) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
@@ -127,8 +110,20 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
     );
   }
 
+  // ✅ Translating state - แสดงตอนแปลภาษา
+  if (translating) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
+        <p className="mt-4 text-gray-600">
+          {language === 'th' ? 'กำลังแปลข่าว...' : 'Translating news...'}
+        </p>
+      </div>
+    );
+  }
+
   // Error state
-  if (error) {
+  if (error && newsArticles.length === 0) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <p className="text-red-700">{error}</p>
@@ -145,13 +140,10 @@ const NewsList = ({ onNewsClick, onSymbolClick }) => {
 
   return (
     <div className="space-y-4">
-      {/* Translating indicator */}
-      {translating && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-          <span className="text-blue-700">
-            {language === 'th' ? 'กำลังแปลข่าวเป็นภาษาไทย...' : 'Translating to English...'}
-          </span>
+      {/* ✅ แสดง warning ถ้าแปลไม่สำเร็จ */}
+      {error && newsArticles.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+          ⚠️ {error}
         </div>
       )}
 
